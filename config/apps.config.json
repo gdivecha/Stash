@@ -1,0 +1,19 @@
+{
+    "apps": {
+        "trackedApps": [
+            "Postman",
+            "DBeaver",
+            "Figma",
+            "Insomnia",
+            "TablePlus",
+            "Slack",
+            "Notion",
+            "Obsidian",
+            "Docker",
+            "Framer",
+            "Webflow",
+            "MongoDB Compass",
+            "pgAdmin"
+        ]
+    }
+}

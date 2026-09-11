@@ -1,7 +1,7 @@
 {
   "name": "stash",
   "version": "1.0.0",
-  "description": "Developer Workstation State & Context Snapshot Engine",
+  "description": "Zero-Effort Developer Workstation Context Engine",
   "main": "server.js",
   "bin": {
     "stash": "./bin/stash.js"

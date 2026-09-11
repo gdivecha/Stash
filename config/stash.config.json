@@ -1,0 +1,10 @@
+{
+    "restore": {
+        "autoOpenVsCode": true,
+        "autoOpenBrowserLinks": true,
+        "autoSwitchGitBranch": true,
+        "autoLaunchTrackedApps": true,
+        "suppressPrompts": true,
+        "fallbackToDefaultBranch": true
+    }
+}

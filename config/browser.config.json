@@ -1,0 +1,69 @@
+{
+    "browser": {
+        "preferredApp": "Google Chrome",
+        "autoCaptureEnabled": true
+    },
+    "ports": {
+        "ignoredPorts": [
+            22,
+            53,
+            80,
+            443,
+            27017,
+            3000,
+            4000,
+            5432,
+            6379
+        ]
+    },
+    "urlCategories": {
+        "PR": [
+            "github.com/*/pull/*", 
+            "gitlab.com/*/merge_requests/*", 
+            "bitbucket.org/*/pull-requests/*"
+        ],
+        "Issue Management": [
+            "atlassian.net/browse/*", 
+            "jira.*", 
+            "linear.app/*/issue/*", 
+            "github.com/*/issues/*", 
+            "trello.com/c/*"
+        ],
+        "Design": [
+            "figma.com/file/*", 
+            "figma.com/design/*", 
+            "framer.com/*", 
+            "webflow.com/*", 
+            "miro.com/app/*"
+        ],
+        "Logs & Metrics": [
+            "datadoghq.com/*", 
+            "console.aws.amazon.com/cloudwatch/*", 
+            "sentry.io/organizations/*", 
+            "grafana.*", 
+            "newrelic.com/*"
+        ],
+        "Documentation": [
+            "notion.so/*", 
+            "*.atlassian.net/wiki/*", 
+            "docs.*", 
+            "developer.*", 
+            "stackoverflow.com/questions/*",
+            "github.com/*/blob/*",
+            "github.com/*/tree/*"
+        ],
+        "CI/CD & Pipelines": [
+            "github.com/*/actions/*",
+            "gitlab.com/*/pipelines/*",
+            "circleci.com/*",
+            "jenkins.*",
+            "app.travis-ci.com/*"
+        ],
+        "API & Testing": [
+            "app.getpostman.com/*",
+            "swagger.*",
+            "localhost:*",
+            "127.0.0.1:*"
+        ]
+    }
+}
