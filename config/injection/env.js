@@ -20,6 +20,8 @@ export const {
     NODE_ENV,
     MONGO_URI,
     SERVER_URL,
+    JWT_SECRET,
+    JWT_EXPIRES_IN,
 } = process.env;
 
 if (!MONGO_URI) {
