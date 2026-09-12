@@ -7,7 +7,7 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export async function loadSettings() {
+export async function loadStashConfig() {
     try {
         const settingsPath = path.resolve(
             __dirname, 
@@ -17,7 +17,9 @@ export async function loadSettings() {
             settingsPath, 
             'utf8'
         );
-        return JSON.parse(rawData);
+        return {
+            clientSettings: JSON.parse(rawData)
+        };
     } catch (error) {
         throw new Error(`Failed to load Stash settings from disk: ${error.message}`);
     }
