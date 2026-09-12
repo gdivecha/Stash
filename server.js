@@ -4,7 +4,7 @@ import express from "express";
 // File Imports
 import { 
     PORT,
-} from "./config/injection/env.js";
+} from "./providers/env.js";
 import connectToDatabase from "./database/mongodb.js";
 
 // All routes
