@@ -15,7 +15,7 @@ vaultRouter.use(authorize);
 
 // But I'll do it the normal, more readable way:
 
-vaultRouter.get('/', getVaultItems);
-vaultRouter.post('/', createVaultItem);
+vaultRouter.get('/pull', getVaultItems);
+vaultRouter.post('/push', createVaultItem);
 
 export default vaultRouter;
