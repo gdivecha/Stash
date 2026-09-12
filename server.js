@@ -10,6 +10,7 @@ import connectToDatabase from "./database/mongodb.js";
 // All routes
 import authRouter from "./routes/auth.routes.js";
 import userRouter from "./routes/user.routes.js";
+import vaultRouter from "./routes/vault.routes.js";
 
 // Built-in Middlewares
 import cookieParser from 'cookie-parser';
@@ -25,6 +26,7 @@ server.use(cookieParser());
 
 server.use('/api/v1/auth', authRouter);
 server.use('/api/v1/users', userRouter);
+server.use('/api/v1/vault', vaultRouter);
 
 server.get('/health', (req, res) => {
     res.status(200).json({
