@@ -28,15 +28,20 @@ export const createVaultItem = async (req, res, next) => {
 
 export const getVaultItems = async (req, res, next) => {
     try {
-        const items = await VaultItem.find({
+        const vaultItem = await VaultItem.findOne({
             user: req.user._id,
         });
 
+        if (!vaultItem) {
+            return res.status(404).json({
+                success: false,
+                message: 'No vault snapshot found for this user',
+            });
+        }
+
         res.status(200).json({
-            success: true, 
-            data: { 
-                items 
-            },
+            success: true,
+            data: vaultItem,
         });
     } catch (error) {
         next(error);
