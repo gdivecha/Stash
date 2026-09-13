@@ -19,6 +19,8 @@
     "lint:fix": "eslint . --fix"
   },
   "dependencies": {
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.38.4",
     "axios": "^1.7.0",
     "bcrypt": "^6.0.0",
     "commander": "^12.1.0",

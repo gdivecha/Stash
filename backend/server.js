@@ -18,6 +18,7 @@ import vaultRouter from "./routes/vault.routes.js";
 
 // Custom Middlewares
 import errorMiddleware from "./middlewares/error.middleware.js";
+import rateLimitMiddleware from "./middlewares/rateLimit.middleware.js";
 
 const server = express();
 
@@ -37,6 +38,8 @@ server.use(helmet());
 server.use(express.json({ limit: '10mb' }));
 server.use(express.urlencoded({ extended: true, limit: '10mb' }));
 server.use(cookieParser());
+
+server.use('/api/', rateLimitMiddleware);
 
 server.use('/api/v1/auth', authRouter);
 server.use('/api/v1/users', userRouter);

@@ -23,6 +23,8 @@ export const {
     JWT_SECRET,
     JWT_EXPIRES_IN,
     SESSION_TOKEN,
+    UPSTASH_REDIS_REST_URL,
+    UPSTASH_REDIS_REST_TOKEN,
 } = process.env;
 
 if (!MONGO_URI) {
