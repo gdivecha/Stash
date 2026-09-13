@@ -165,4 +165,4 @@ npm link
 
 ```
 
-*Note: Ensure `client/index.js` includes the shebang directive `#!/usr/bin/env node` as the absolute first line of the file.*
+*Note: Ensure `client/cli.js` includes the shebang directive `#!/usr/bin/env node` as the absolute first line of the file.*

@@ -5,13 +5,13 @@
   "type": "module",
   "main": "backend/server.js",
   "bin": {
-    "stash": "./client/index.js"
+    "stash": "./client/cli.js"
   },
   "scripts": {
     "server:start": "node backend/server.js",
     "server:dev": "nodemon backend/server.js",
-    "client:run": "node client/index.js",
-    "client:dev": "node --watch client/index.js",
+    "client:run": "node client/cli.js",
+    "client:dev": "node --watch client/cli.js",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "test:crypto": "node client/tests/crypto.test.js",
