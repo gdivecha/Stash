@@ -18,7 +18,7 @@ import {
 import { 
     encryptPayload,
     decryptPayload
-} from './crypto.js';
+} from './utils/crypto.js';
 import {
     BACKEND_SERVER_URL,
     SESSION_TOKEN,

@@ -1,3 +1,4 @@
+// 3. Auth Controller (backend/controllers/auth.controller.js)
 import jwt from 'jsonwebtoken';
 import User from '../models/user.model.js';
 import dayjs from 'dayjs';
@@ -6,6 +7,7 @@ import {
     JWT_SECRET,
     NODE_ENV,
 } from '../../env.js';
+import { blacklistToken } from '../providers/upstash.js';
 
 const signToken = (userId) => {
     return jwt.sign(
@@ -90,16 +92,35 @@ export const signIn = async (req, res, next) => {
     }
 };
 
-export const signOut = (req, res) => {
-    res.cookie(
-        'token',
-        'loggedout',
-        {
-            expires: dayjs().add(10, 'seconds').toDate(),
-            httpOnly: true,
-        },
-    );
-    res.status(200).json({
-        status: 'success',
-    });
+export const signOut = async (req, res, next) => {
+    try {
+        const token = req.token; // Captured from authorize middleware
+
+        if (token && token !== 'loggedout') {
+            const decoded = jwt.decode(token);
+            if (decoded && decoded.exp) {
+                const now = Math.floor(Date.now() / 1000);
+                const ttl = decoded.exp - now;
+
+                if (ttl > 0) {
+                    await blacklistToken(token, ttl);
+                }
+            }
+        }
+
+        res.cookie(
+            'token',
+            'loggedout',
+            {
+                expires: dayjs().add(10, 'seconds').toDate(),
+                httpOnly: true,
+            },
+        );
+        res.status(200).json({
+            status: 'success',
+            message: 'Logged out successfully',
+        });
+    } catch (error) {
+        next(error);
+    }
 };

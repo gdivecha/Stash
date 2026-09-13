@@ -1,7 +1,7 @@
 import { 
     encryptPayload,
     decryptPayload,
-} from '../crypto.js';
+} from '../utils/crypto.js';
 
 function testCryptoPipeline() {
     try {

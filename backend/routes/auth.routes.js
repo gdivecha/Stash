@@ -9,11 +9,12 @@ import {
     registerUserSchema, 
     loginUserSchema 
 } from '../middlewares/validation.middleware.js';
+import authorize from '../middlewares/auth.middleware.js';
 
 const authRouter = Router();
 
 authRouter.post('/sign-up', validate(registerUserSchema), signUp);
 authRouter.post('/sign-in', validate(loginUserSchema), signIn);
-authRouter.post('/sign-out', signOut);
+authRouter.post('/sign-out', authorize, signOut);
 
 export default authRouter;
