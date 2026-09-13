@@ -1,4 +1,21 @@
 {
+    "apps": {
+        "trackedApps": [
+            "Postman",
+            "DBeaver",
+            "Figma",
+            "Insomnia",
+            "TablePlus",
+            "Slack",
+            "Notion",
+            "Obsidian",
+            "Docker",
+            "Framer",
+            "Webflow",
+            "MongoDB Compass",
+            "pgAdmin"
+        ]
+    },
     "browser": {
         "preferredApp": "Google Chrome",
         "autoCaptureEnabled": true
@@ -65,5 +82,18 @@
             "localhost:*",
             "127.0.0.1:*"
         ]
+    },
+    "client": {
+        "baseUrl": "http://localhost:4000/api",
+        "version": "v1"
+    },
+    "snapshot": {
+        "includePaths": [
+        "./safe-test-config.json"
+        ]
+    },
+    "restore": {
+        "autoOpenVsCode": false,
+        "suppressPrompts": true
     }
 }

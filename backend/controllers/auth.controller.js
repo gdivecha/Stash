@@ -5,7 +5,7 @@ import {
     JWT_EXPIRES_IN,
     JWT_SECRET,
     NODE_ENV,
-} from '../../providers/env.js';
+} from '../../env.js';
 
 const signToken = (userId) => {
     return jwt.sign(

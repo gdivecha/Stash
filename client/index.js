@@ -20,10 +20,11 @@ import {
     decryptPayload
 } from './crypto.js';
 import {
+    BACKEND_SERVER_URL,
     SESSION_TOKEN,
-} from '../providers/env.js';
+} from '../env.js';
 
-const API_BASE_URL = 'http://localhost:4000/api/v1/vault';
+const API_BASE_URL = `${BACKEND_SERVER_URL}/api/v1/vault`;
 const program = new Command();
 
 async function promptForPassword(actionDescription) {

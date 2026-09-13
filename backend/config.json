@@ -1,0 +1,26 @@
+{
+    "cors": {
+        "allowedOrigins": [
+            "http://localhost:3000",
+            "http://localhost:5173"
+        ],
+        "allowedMethods": [
+            "GET",
+            "POST",
+            "PUT",
+            "DELETE",
+            "PATCH"
+        ],
+        "allowedHeaders": [
+            "Content-Type",
+            "Authorization"
+        ]
+    },
+    "rateLimit": {
+        "max": 100,
+        "window": "15 m"
+    },
+    "server": {
+        "payloadLimit": "10mb"
+    }
+}

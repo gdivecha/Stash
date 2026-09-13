@@ -8,9 +8,10 @@ import hpp from 'hpp';
 
 // File Imports
 import { 
-    PORT,
-} from "../providers/env.js";
+    BACKEND_PORT,
+} from "../env.js";
 import connectToDatabase from "./database/mongodb.js";
+import configFile from './config.json' with { type: 'json' };
 
 // All routes
 import authRouter from "./routes/auth.routes.js";
@@ -20,6 +21,7 @@ import vaultRouter from "./routes/vault.routes.js";
 // Custom Middlewares
 import errorMiddleware from "./middlewares/error.middleware.js";
 import rateLimitMiddleware from "./middlewares/rateLimit.middleware.js";
+import corsMiddleware from './middlewares/cors.middleware.js';
 
 const server = express();
 
@@ -34,10 +36,15 @@ const server = express();
  */
 server.use(helmet());
 
+// Apply the modularized CORS configuration
+server.use(corsMiddleware);
+
+
 // - Payload Size Restriction: Aligned with 10MB max ciphertext schema limit to block DoS attacks
-// - If you change this, you'll have to update the schema as well
-server.use(express.json({ limit: '10mb' }));
-server.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Apply centralized payload caps from config.json
+const payloadLimit = configFile.server?.payloadLimit || '10mb';
+server.use(express.json({ limit: payloadLimit }));
+server.use(express.urlencoded({ extended: true, limit: payloadLimit }));
 
 // Protect against HTTP Parameter Pollution (HPP) attacks
 server.use(hpp());
@@ -59,8 +66,8 @@ server.get('/health', (req, res) => {
 
 server.use(errorMiddleware);
 
-server.listen( PORT, async() => {
-    console.log(`Stash API is running on http://localhost:${PORT}`);
+server.listen( BACKEND_PORT, async() => {
+    console.log(`Stash API is running on http://localhost:${BACKEND_PORT}`);
     await connectToDatabase();
 });
 

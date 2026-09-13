@@ -8,7 +8,7 @@ const __dirname = path.dirname(__filename);
 config({
     path: path.join(
         __dirname, 
-        '../', 
+        './', 
         `.env.${process.env.NODE_ENV || 'development'}.local`
     )
 });
@@ -16,10 +16,12 @@ config({
 config();
 
 export const { 
-    PORT,
     NODE_ENV,
+    BACKEND_PORT,
+    BACKEND_SERVER_URL,
+    FRONTEND_PORT,
+    FRONTEND_URL,
     MONGO_URI,
-    SERVER_URL,
     JWT_SECRET,
     JWT_EXPIRES_IN,
     SESSION_TOKEN,

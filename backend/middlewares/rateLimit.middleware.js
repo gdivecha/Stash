@@ -1,4 +1,6 @@
-import { ratelimit } from "../../providers/upstash.js";
+import { 
+    ratelimit,
+} from "../providers/upstash.js";
 
 const rateLimitMiddleware = async (req, res, next) => {
     try {

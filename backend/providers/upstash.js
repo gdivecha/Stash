@@ -3,7 +3,8 @@ import { Ratelimit } from "@upstash/ratelimit";
 import { 
     UPSTASH_REDIS_REST_TOKEN, 
     UPSTASH_REDIS_REST_URL 
-} from "./env.js";
+} from "../../env.js";
+import configFile from '../config.json' with { type: 'json' };
 
 export const redis = new Redis({
     url: UPSTASH_REDIS_REST_URL,
@@ -12,7 +13,10 @@ export const redis = new Redis({
 
 export const ratelimit = new Ratelimit({
     redis: redis,
-    limiter: Ratelimit.slidingWindow(100, "15 m"),
+    limiter: Ratelimit.slidingWindow(
+        configFile.rateLimit?.max || 100, 
+        configFile.rateLimit?.window || "15 m"
+    ),
     analytics: true,
     prefix: "stash:ratelimit",
 });

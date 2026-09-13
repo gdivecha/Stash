@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import { 
     NODE_ENV,
     MONGO_URI,
-} from "../../providers/env.js";
+} from "../../env.js";
 
 
 if (!MONGO_URI) {
