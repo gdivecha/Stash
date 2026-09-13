@@ -33,6 +33,4 @@ export async function scanVSCodeExtensions() {
         console.error('Error reading extensions directory:', error.message);
         return extensions;
     }
-
-
 }

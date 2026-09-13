@@ -22,7 +22,7 @@ export const {
     SERVER_URL,
     JWT_SECRET,
     JWT_EXPIRES_IN,
-    SESSION_TOKEN
+    SESSION_TOKEN,
 } = process.env;
 
 if (!MONGO_URI) {
