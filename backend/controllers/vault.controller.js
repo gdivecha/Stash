@@ -92,7 +92,7 @@ export const getVaultItems = async (req, res, next) => {
         if (!vaultItem) {
             return res.status(404).json({
                 success: false,
-                error: `No vault snapshot found for type '${payloadType}' in workspace '${workspaceName}'.`,
+                message: `No vault snapshot found for type '${payloadType}' in workspace '${workspaceName}'.`,
             });
         }
 

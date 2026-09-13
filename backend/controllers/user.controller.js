@@ -1,4 +1,5 @@
 import User from "../models/user.model.js";
+import VaultItem from "../models/vault.model.js";
 import dayjs from 'dayjs';
 
 export const getUserProfile = async (req, res, next) => {
@@ -74,6 +75,9 @@ export const updateUserInfo = async (req, res, next) => {
 
 export const deleteUser = async (req, res, next) => {
     try {
+        // Delete all associated vaulted items before removing the user using the correct model and 'user' field reference
+        await VaultItem.deleteMany({ user: req.user._id });
+
         await User.findByIdAndDelete(req.user._id);
 
         res.cookie(
@@ -87,7 +91,7 @@ export const deleteUser = async (req, res, next) => {
 
         res.status(200).json({
             success: true,
-            message: 'User account deleted successfully',
+            message: 'User account and all associated vault items deleted successfully',
         });
     } catch (error) {
         next(error);
