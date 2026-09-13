@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
     createVaultItem,
     getVaultItems,
+    getVaultSummary,
 } from '../controllers/vault.controller.js';
 import authorize from '../middlewares/auth.middleware.js';
 
@@ -17,5 +18,6 @@ vaultRouter.use(authorize);
 
 vaultRouter.get('/pull', getVaultItems);
 vaultRouter.post('/push', createVaultItem);
+vaultRouter.get('/summary', getVaultSummary);
 
 export default vaultRouter;

@@ -5,16 +5,11 @@
   },
   "snapshot": {
     "includePaths": [
-      "~/.zshrc",
-      "~/.config/nvim"
+      "./safe-test-config.json"
     ]
   },
   "restore": {
-    "autoOpenVsCode": true,
-    "autoOpenBrowserLinks": true,
-    "autoSwitchGitBranch": true,
-    "autoLaunchTrackedApps": true,
-    "suppressPrompts": true,
-    "fallbackToDefaultBranch": true
+    "autoOpenVsCode": false,
+    "suppressPrompts": true
   }
 }

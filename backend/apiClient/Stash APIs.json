@@ -1,0 +1,382 @@
+{
+  "v": 12,
+  "name": "Stash APIs",
+  "folders": [
+    {
+      "v": 12,
+      "name": "User",
+      "folders": [
+        {
+          "v": 12,
+          "name": "Token Generating APIs",
+          "folders": [],
+          "requests": [
+            {
+              "v": "17",
+              "name": "User Sign Up",
+              "method": "POST",
+              "endpoint": "<<baseUrl>>/<<apiVersion>>/auth/sign-up",
+              "params": [],
+              "headers": [],
+              "preRequestScript": "",
+              "testScript": "",
+              "auth": {
+                "authType": "none",
+                "authActive": true
+              },
+              "body": {
+                "contentType": "application/json",
+                "body": "{\n  \"name\": \"tester\",\n  \"email\": \"test@stash.com\",\n  \"password\": \"securepassword123\"\n}"
+              },
+              "requestVariables": [],
+              "responses": {
+                "New User - Gaurav Divecha": {
+                  "name": "New User - Gaurav Divecha",
+                  "code": 200,
+                  "status": "OK",
+                  "headers": [],
+                  "body": "",
+                  "originalRequest": {
+                    "v": "6",
+                    "name": "User Sign Up",
+                    "method": "POST",
+                    "endpoint": "<<baseUrl>>/<<apiVersion>>/auth/sign-up",
+                    "headers": [],
+                    "params": [],
+                    "body": {
+                      "contentType": "application/json",
+                      "body": "{\n  \"name\": \"Gaurav Divecha\",\n  \"email\": \"gauravdivecha@stash.com\",\n  \"password\": \"securepassword123\"\n}"
+                    },
+                    "auth": {
+                      "authType": "none",
+                      "authActive": true
+                    },
+                    "requestVariables": []
+                  }
+                },
+                "New User - Divecha Gaurav": {
+                  "name": "New User - Divecha Gaurav",
+                  "code": 200,
+                  "status": "OK",
+                  "headers": [],
+                  "body": "",
+                  "originalRequest": {
+                    "v": "6",
+                    "name": "User Sign Up",
+                    "method": "POST",
+                    "endpoint": "<<baseUrl>>/<<apiVersion>>/auth/sign-up",
+                    "headers": [],
+                    "params": [],
+                    "body": {
+                      "contentType": "application/json",
+                      "body": "{\n  \"name\": \"Divecha Gaurav\",\n  \"email\": \"divechagaurav@stash.com\",\n  \"password\": \"securepassword123\"\n}"
+                    },
+                    "auth": {
+                      "authType": "none",
+                      "authActive": true
+                    },
+                    "requestVariables": []
+                  }
+                }
+              },
+              "description": null
+            },
+            {
+              "v": "17",
+              "endpoint": "<<baseUrl>>/<<apiVersion>>/auth/sign-in",
+              "name": "User Sign In",
+              "params": [],
+              "headers": [],
+              "method": "POST",
+              "auth": {
+                "authType": "none",
+                "authActive": true
+              },
+              "preRequestScript": "",
+              "testScript": "// 1. Extract Set-Cookie header\nconst headers = pw.response.headers || {};\nlet cookieHeader = \"\";\n\nif (Array.isArray(headers)) {\n    const match = headers.find(h => h.key.toLowerCase() === 'set-cookie');\n    if (match) cookieHeader = match.value;\n} else if (typeof headers === 'object') {\n    cookieHeader = headers['set-cookie'] || headers['Set-Cookie'] || \"\";\n}\n\nconst tokenMatch = cookieHeader.match(/token=([^;]+)/);\n\nif (tokenMatch && tokenMatch[1]) {\n    const newToken = tokenMatch[1].trim();\n\n    // 2. Check if a specific slot was requested via Header (e.g. X-User-Slot: 3)\n    const requestedSlot = pw.request.headers['x-user-slot'] || pw.request.headers['X-User-Slot'];\n\n    if (requestedSlot) {\n        const targetVar = `user${requestedSlot}Token`;\n        pw.env.set(targetVar, newToken);\n        console.log(`Forced token save -> <<${targetVar}>>`);\n    } else {\n        // 3. Fallback: Automatically find the next available user slot\n        let targetIndex = 1;\n        let slotFound = false;\n\n        while (!slotFound) {\n            const varName = `user${targetIndex}Token`;\n            const existingVal = pw.env.get(varName);\n\n            if (!existingVal || existingVal === newToken) {\n                pw.env.set(varName, newToken);\n                console.log(`Auto-routed token -> <<${varName}>>`);\n                slotFound = true;\n            } else {\n                targetIndex++;\n            }\n        }\n    }\n\n    // Always set active token for immediate follow-up calls\n    pw.env.set(\"token\", newToken);\n}\n",
+              "body": {
+                "contentType": "application/json",
+                "body": "{\n  \"email\": \"test@stash.com\",\n  \"password\": \"securepassword123\"\n}"
+              },
+              "requestVariables": [],
+              "responses": {
+                "User Sign In - Gaurav Divecha": {
+                  "name": "User Sign In - Gaurav Divecha",
+                  "code": 200,
+                  "status": "OK",
+                  "headers": [],
+                  "body": "",
+                  "originalRequest": {
+                    "v": "6",
+                    "name": "User Sign In",
+                    "method": "POST",
+                    "endpoint": "<<baseUrl>>/<<apiVersion>>/auth/sign-in",
+                    "headers": [],
+                    "params": [],
+                    "body": {
+                      "contentType": "application/json",
+                      "body": "{\n  \"email\": \"gauravdivecha@stash.com\",\n  \"password\": \"securepassword123\"\n}"
+                    },
+                    "auth": {
+                      "authType": "none",
+                      "authActive": true
+                    },
+                    "requestVariables": []
+                  }
+                },
+                "User Sign In - Divecha Gaurav": {
+                  "name": "User Sign In - Divecha Gaurav",
+                  "code": 200,
+                  "status": "OK",
+                  "headers": [],
+                  "body": "",
+                  "originalRequest": {
+                    "v": "6",
+                    "name": "User Sign In",
+                    "method": "POST",
+                    "endpoint": "<<baseUrl>>/<<apiVersion>>/auth/sign-in",
+                    "headers": [],
+                    "params": [],
+                    "body": {
+                      "contentType": "application/json",
+                      "body": "{\n  \"email\": \"divechagaurav@stash.com\",\n  \"password\": \"securepassword123\"\n}"
+                    },
+                    "auth": {
+                      "authType": "none",
+                      "authActive": true
+                    },
+                    "requestVariables": []
+                  }
+                }
+              },
+              "description": null
+            }
+          ],
+          "auth": {
+            "authType": "inherit",
+            "authActive": true
+          },
+          "headers": [],
+          "variables": [],
+          "description": null,
+          "preRequestScript": "",
+          "testScript": "console.log(\"--- Post-Request Script Running ---\");\n\nconst resHeaders = pw.response.headers || {};\nlet cookieHeader = \"\";\n\nif (Array.isArray(resHeaders)) {\n    const match = resHeaders.find(h => h && (h.key || h.name || \"\").toLowerCase() === 'set-cookie');\n    if (match) cookieHeader = match.value;\n} else if (typeof resHeaders === 'object') {\n    for (const key in resHeaders) {\n        if (key && key.toLowerCase() === 'set-cookie') {\n            cookieHeader = Array.isArray(resHeaders[key]) ? resHeaders[key].join('; ') : resHeaders[key];\n            break;\n        }\n    }\n}\n\nconst tokenMatch = cookieHeader.match(/token=([^;]+)/);\n\nif (tokenMatch && tokenMatch[1]) {\n    const newToken = tokenMatch[1].trim();\n\n    let responseBodyStr = \"\";\n    try {\n        responseBodyStr = typeof pw.response.body === 'string' ? pw.response.body : JSON.stringify(pw.response.body || {});\n    } catch (e) {\n        responseBodyStr = \"\";\n    }\n\n    let targetSlot = \"1\";\n    const lowerBody = responseBodyStr.toLowerCase();\n\n    if (lowerBody.includes(\"divecha gaurav\")) {\n        targetSlot = \"2\";\n    } else if (lowerBody.includes(\"gaurav divecha\")) {\n        targetSlot = \"1\";\n    }\n\n    // Update target slot\n    pw.env.set(\"targetSlot\", targetSlot);\n\n    // Save to slot-specific variable\n    const targetVar = `user${targetSlot}Token`;\n    pw.env.set(targetVar, newToken);\n\n    // Also instantly update the active 'token' variable\n    pw.env.set(\"token\", newToken);\n\n    console.log(`Success! Set targetSlot to ${targetSlot}, saved token to <<${targetVar}>>, and updated active <<token>>.`);\n} else {\n    console.error(\"TOKEN MISSING: Set-Cookie header not found in response.\");\n}"
+        },
+        {
+          "v": 12,
+          "name": "Token Consuming APIs",
+          "folders": [],
+          "requests": [
+            {
+              "v": "17",
+              "endpoint": "<<baseUrl>>/<<apiVersion>>/users/me",
+              "name": "User Get Info",
+              "params": [],
+              "headers": [],
+              "method": "GET",
+              "auth": {
+                "authType": "inherit",
+                "authActive": true
+              },
+              "preRequestScript": "",
+              "testScript": "",
+              "body": {
+                "contentType": null,
+                "body": null
+              },
+              "requestVariables": [],
+              "responses": {},
+              "description": null
+            },
+            {
+              "v": "17",
+              "endpoint": "<<baseUrl>>/<<apiVersion>>/auth/sign-out",
+              "name": "User Sign Out",
+              "params": [],
+              "headers": [],
+              "method": "POST",
+              "auth": {
+                "authType": "inherit",
+                "authActive": true
+              },
+              "preRequestScript": "",
+              "testScript": "// Automatically clears the active user's token when they sign out\nconst activeSlot = pw.env.get(\"targetSlot\") || \"1\";\npw.env.set(`user${activeSlot}Token`, \"\");\npw.env.set(\"token\", \"\");\nconsole.log(`Signed out slot ${activeSlot} and cleared token variables.`);",
+              "body": {
+                "contentType": null,
+                "body": null
+              },
+              "requestVariables": [],
+              "responses": {},
+              "description": null
+            },
+            {
+              "v": "17",
+              "endpoint": "<<baseUrl>>/<<apiVersion>>/users/me",
+              "name": "Update User Profile",
+              "params": [],
+              "headers": [],
+              "method": "PATCH",
+              "auth": {
+                "authType": "inherit",
+                "authActive": true
+              },
+              "preRequestScript": "",
+              "testScript": "",
+              "body": {
+                "contentType": null,
+                "body": null
+              },
+              "requestVariables": [],
+              "responses": {},
+              "description": null
+            },
+            {
+              "v": "17",
+              "endpoint": "<<baseUrl>>/<<apiVersion>>/users/me",
+              "name": "Delete User Account",
+              "params": [],
+              "headers": [],
+              "method": "DELETE",
+              "auth": {
+                "authType": "inherit",
+                "authActive": true
+              },
+              "preRequestScript": "",
+              "testScript": "const activeSlot = pw.env.get(\"targetSlot\") || \"1\";\npw.env.set(`user${activeSlot}Token`, \"\");\npw.env.set(\"token\", \"\");\nconsole.log(`User in slot ${activeSlot} deleted. Cleared local token variables.`);",
+              "body": {
+                "contentType": null,
+                "body": null
+              },
+              "requestVariables": [],
+              "responses": {},
+              "description": null
+            }
+          ],
+          "auth": {
+            "authType": "bearer",
+            "authActive": true,
+            "token": "<<token>>"
+          },
+          "headers": [],
+          "variables": [],
+          "description": null,
+          "preRequestScript": "// Look at your manual targetSlot (1 or 2)\nconst activeSlot = pw.env.get(\"targetSlot\") || \"1\";\n\n// Dynamically grab either user1Token or user2Token based on that slot\nconst selectedToken = pw.env.get(`user${activeSlot}Token`) || \"\";\n\n// Assign it to the generic 'token' variable used in your requests\npw.env.set(\"token\", selectedToken);\n\nconsole.log(`Active Slot: ${activeSlot} | Loaded token into <<token>>`);",
+          "testScript": ""
+        }
+      ],
+      "requests": [],
+      "auth": {
+        "authType": "inherit",
+        "authActive": true
+      },
+      "headers": [],
+      "variables": [],
+      "description": null,
+      "preRequestScript": "",
+      "testScript": ""
+    },
+    {
+      "v": 12,
+      "name": "Vault",
+      "folders": [],
+      "requests": [
+        {
+          "v": "17",
+          "endpoint": "<<baseUrl>>/<<apiVersion>>/vault/pull",
+          "name": "Snapshot Retrieval",
+          "params": [
+            {
+              "key": "type",
+              "value": "declarative_state",
+              "active": true,
+              "description": ""
+            },
+            {
+              "key": "workspace",
+              "value": "default",
+              "active": true,
+              "description": ""
+            }
+          ],
+          "headers": [],
+          "method": "GET",
+          "auth": {
+            "authType": "inherit",
+            "authActive": true
+          },
+          "preRequestScript": "",
+          "testScript": "",
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "requestVariables": [],
+          "responses": {},
+          "description": null
+        },
+        {
+          "v": "17",
+          "endpoint": "<<baseUrl>>/<<apiVersion>>/vault/summary",
+          "name": "Vault Summary",
+          "params": [],
+          "headers": [],
+          "method": "GET",
+          "auth": {
+            "authType": "inherit",
+            "authActive": true
+          },
+          "preRequestScript": "",
+          "testScript": "",
+          "body": {
+            "contentType": null,
+            "body": null
+          },
+          "requestVariables": [],
+          "responses": {},
+          "description": null
+        },
+        {
+          "v": "17",
+          "endpoint": "<<baseUrl>>/<<apiVersion>>/vault/push",
+          "name": "Snapshot Creation",
+          "params": [],
+          "headers": [],
+          "method": "POST",
+          "auth": {
+            "authType": "inherit",
+            "authActive": true
+          },
+          "preRequestScript": "",
+          "testScript": "",
+          "body": {
+            "contentType": "application/json",
+            "body": "{\n  \"schemaVersion\": \"1.0.0\",\n  \"payload\": {\n    \"ciphertext\": \"U2FsdGVkX1+mockedEncryptedPayloadDataString==\",\n    \"iv\": \"a1b2c3d4e5f67890\",\n    \"authTag\": \"f8e7d6c5b4a3210f\",\n    \"salt\": \"c0ffee1234567890\"\n  },\n  \"metadata\": {\n    \"payloadType\": \"declarative_state\",\n    \"workspaceName\": \"default\",\n    \"device\": {\n      \"deviceId\": \"macbook-pro-m2\",\n      \"hostname\": \"Gauravs-MBP.local\",\n      \"platform\": \"darwin\",\n      \"arch\": \"arm64\"\n    },\n    \"itemCount\": 14\n  }\n}"
+          },
+          "requestVariables": [],
+          "responses": {},
+          "description": null
+        }
+      ],
+      "auth": {
+        "authType": "bearer",
+        "authActive": true,
+        "token": "<<token>>"
+      },
+      "headers": [],
+      "variables": [],
+      "description": null,
+      "preRequestScript": "console.log(\"--- Vault Pre-Request Script Running ---\");\n\nconst targetSlot = pw.env.get(\"targetSlot\") || \"1\";\nconst activeToken = pw.env.get(`user${targetSlot}Token`);\n\nif (activeToken && activeToken !== \"empty\" && activeToken.trim() !== \"\") {\n    pw.env.set(\"token\", activeToken);\n    console.log(`Vault Request routed to User ${targetSlot} (Token active).`);\n} else {\n    console.warn(`WARNING: No valid token found for User ${targetSlot} in <<user${targetSlot}Token>>.`);\n}",
+      "testScript": ""
+    }
+  ],
+  "requests": [],
+  "headers": [],
+  "auth": {
+    "authType": "none",
+    "authActive": true
+  },
+  "variables": [],
+  "description": "",
+  "preRequestScript": "",
+  "testScript": ""
+}
