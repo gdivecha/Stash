@@ -5,6 +5,10 @@ import {
     getVaultSummary,
 } from '../controllers/vault.controller.js';
 import authorize from '../middlewares/auth.middleware.js';
+import { 
+    validate, 
+    vaultItemSchema 
+} from '../middlewares/validation.middleware.js';
 
 const vaultRouter = Router();
 
@@ -17,7 +21,7 @@ vaultRouter.use(authorize);
 // But I'll do it the normal, more readable way:
 
 vaultRouter.get('/pull', getVaultItems);
-vaultRouter.post('/push', createVaultItem);
+vaultRouter.post('/push', validate(vaultItemSchema), createVaultItem);
 vaultRouter.get('/summary', getVaultSummary);
 
 export default vaultRouter;
