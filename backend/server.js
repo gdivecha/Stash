@@ -9,6 +9,7 @@ import hpp from 'hpp';
 // File Imports
 import { 
     BACKEND_PORT,
+    BACKEND_API_VERSION,
 } from "../env.js";
 import connectToDatabase from "./database/mongodb.js";
 import configFile from './config.json' with { type: 'json' };
@@ -51,11 +52,11 @@ server.use(hpp());
 
 server.use(cookieParser());
 
-server.use('/api/', rateLimitMiddleware);
+server.use(rateLimitMiddleware);
 
-server.use('/api/v1/auth', authRouter);
-server.use('/api/v1/users', userRouter);
-server.use('/api/v1/vault', vaultRouter);
+server.use(`/${BACKEND_API_VERSION}/auth`, authRouter);
+server.use(`/${BACKEND_API_VERSION}/users`, userRouter);
+server.use(`/${BACKEND_API_VERSION}/vault`, vaultRouter);
 
 server.get('/health', (req, res) => {
     res.status(200).json({
@@ -67,7 +68,7 @@ server.get('/health', (req, res) => {
 server.use(errorMiddleware);
 
 server.listen( BACKEND_PORT, async() => {
-    console.log(`Stash API is running on http://localhost:${BACKEND_PORT}`);
+    console.log(`Stash API is running on http://localhost:${BACKEND_PORT}/api`);
     await connectToDatabase();
 });
 

@@ -21,10 +21,11 @@ import {
 } from './utils/crypto.js';
 import {
     BACKEND_SERVER_URL,
+    BACKEND_API_VERSION,
     SESSION_TOKEN,
 } from '../env.js';
 
-const API_BASE_URL = `${BACKEND_SERVER_URL}/api/v1/vault`;
+const API_BASE_URL = `${BACKEND_SERVER_URL}/${BACKEND_API_VERSION}/vault`;
 const program = new Command();
 
 async function promptForPassword(actionDescription) {
