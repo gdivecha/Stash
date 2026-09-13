@@ -12,27 +12,47 @@ const vaultItemSchema = new mongoose.Schema({
         type: String,
         required: true,
         default: '1.0.0',
+        maxlength: [
+            16, 
+            'Schema version cannot exceed 16 characters'
+        ],
     },
     // Encrypted payload container (Server remains completely zero-knowledge)
     payload: {
         ciphertext: {
             type: String,
             required: true,
+            maxlength: [
+                10485760, 
+                'Ciphertext payload exceeds maximum allowed size of 10MB'
+            ], 
         },
         iv: {
             type: String,
             required: true,
+            maxlength: [
+                64, 
+                'IV string exceeds maximum length'
+            ], 
         },
         authTag: {
             type: String,
             required: true, // Crucial for AES-256-GCM authentication
+            maxlength: [
+                64, 
+                'Auth tag string exceeds maximum length'
+            ],
         },
         salt: {
             type: String,
             required: true, // Key derivation salt (PBKDF2/Argon2)
+            maxlength: [
+                128, 
+                'Salt string exceeds maximum length'
+            ], 
         },
     },
-    // Unencrypted metadat for routing, Phase 3 device guards, and UI previews
+    // Unencrypted metadata for routing, Phase 3 device guards, and UI previews
     metadata: {
         payloadType: {
             type: String,
@@ -46,9 +66,9 @@ const vaultItemSchema = new mongoose.Schema({
             required: true,
         },
         /**
-         * The CLI explicitly sends 'default' for Phase 1 & 2 snapshots so you can only have singular snapshots for pahses 1 and 2 
+         * The CLI explicitly sends 'default' for Phase 1 & 2 snapshots so you can only have singular snapshots for phases 1 and 2 
          * (Phase 1 being non-sensitive app extensions and so on, Phase 2 being dot files including sensitive info, and Phase 3 being
-         * live session capture which woudl require much fine permission managament), and custim names (e.g. 'auth-refactor') for Phase 3
+         * live session capture which would require much fine permission management), and custom names (e.g. 'auth-refactor') for Phase 3
          * workspace sessions
          */
         workspaceName: {
@@ -56,6 +76,12 @@ const vaultItemSchema = new mongoose.Schema({
             required: true,
             trim: true,
             lowercase: true,
+            minlength: 2, 
+            maxlength: 64, 
+            match: [
+                /^[a-z0-9-_]+$/, 
+                'Workspace name can only contain lowercase alphanumeric characters, hyphens, and underscores.'
+            ],
         },
         /**
          * - Why this matters:
@@ -71,22 +97,66 @@ const vaultItemSchema = new mongoose.Schema({
             // e.g. "macbook-pro-m2" (or a UUID)
             deviceId: { 
                 type: String, 
-                default: null 
+                default: null,
+                maxlength: [
+                    128, 
+                    'Device ID exceeds maximum length'
+                ], 
+                match: [
+                    /^[a-zA-Z0-9-_.:]*$/, 
+                    'Invalid characters in deviceId'
+                ],
             },
             // e.g. "Gauravs-MBP.local"
             hostname: { 
                 type: String, 
-                default: null 
+                default: null,
+                maxlength: [
+                    255, 
+                    'Hostname exceeds maximum length'
+                ], 
+                match: [
+                    /^[a-zA-Z0-9-._]*$/, 
+                    'Invalid characters in hostname'
+                ],
             },
             // e.g. "darwin" (macOS) or "linux"
             platform: { 
                 type: String, 
-                default: null 
+                default: null,
+                maxlength: [
+                    32, 
+                    'Platform string too long'
+                ],
+                enum: [
+                    null, 
+                    'darwin', 
+                    'linux', 
+                    'win32', 
+                    'freebsd', 
+                    'openbsd', 
+                    'sunos'
+                ],
             },
             // e.g. "arm64" or "x64"
             arch: { 
                 type: String, 
-                default: null 
+                default: null,
+                maxlength: [
+                    16, 
+                    'Architecture string too long'
+                ],
+                enum: [
+                    null, 
+                    'x64', 
+                    'arm64', 
+                    'arm', 
+                    'ia32', 
+                    'mips', 
+                    'mipsel', 
+                    'ppc64', 
+                    's390x'
+                ],
             },
         },
         // Quick summary without decryption: Enables fast UI summaries (e.g., displaying "Last updated 2 hours ago • 14 packages stored") without forcing the client to pull the entire 
@@ -94,6 +164,14 @@ const vaultItemSchema = new mongoose.Schema({
         itemCount: {
             type: Number,
             default: 0,
+            min: [
+                0, 
+                'Item count cannot be negative'
+            ], 
+            max: [
+                1000000, 
+                'Item count exceeds realistic limits'
+            ],
         },
     }
 }, { timestamps: true });
@@ -113,7 +191,7 @@ vaultItemSchema.index(
 /**
  * - Databases slow down significantly as they grow if they have to scan every row to find a user's data.
  * - This creates a high-speed lookup shortcut in MongoDB. When you request your latest declarative_state snapshot, 
- *   MongoDB uses this index to jump directly to your user ID $\rightarrow$ the specific payload type $\rightarrow$ sorted by newest timestamp, returning the 
+ *   MongoDB uses this index to jump directly to your user ID -> the specific payload type -> sorted by newest timestamp, returning the 
  *   exact snapshot in milliseconds
  */
 vaultItemSchema.index({ 
