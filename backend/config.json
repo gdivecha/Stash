@@ -22,5 +22,8 @@
     },
     "server": {
         "payloadLimit": "10mb"
+    },
+    "vault": {
+        "maxWorkspacesPerUser": 15
     }
 }

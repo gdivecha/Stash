@@ -1,4 +1,3 @@
-// backend/middlewares/validation.middleware.js
 import { z } from 'zod';
 
 /**
@@ -63,7 +62,7 @@ export const vaultItemSchema = z.object({
     }),
 });
 
-export const vaultQuerySchema = z.object({
+export const vaultParamSchema = z.object({
     type: z.enum(['declarative_state', 'dotfiles', 'workspace_session', 'hybrid']).default('declarative_state'),
     workspace: z.string()
         .min(2)
@@ -73,12 +72,22 @@ export const vaultQuerySchema = z.object({
         .default('default'),
 });
 
+export const vaultDeleteParamSchema = z.object({
+    type: z.enum(['workspace_session']),
+    workspace: z.string()
+        .min(2)
+        .max(64)
+        .regex(/^[a-z0-9-_]+$/, 'Workspace name can only contain lowercase alphanumeric characters, hyphens, and underscores.')
+        .toLowerCase(),
+});
+
 export const validate = (schema, source = 'body') => async (req, res, next) => {
     try {
         if (source === 'query') {
             req.query = await schema.parseAsync(req.query);
+        } else if (source === 'params') {
+            req.params = await schema.parseAsync(req.params);
         } else {
-            // Strict parsing strips unexpected fields and validates types, stopping NoSQL operator injection
             req.body = await schema.parseAsync(req.body);
         }
         next();

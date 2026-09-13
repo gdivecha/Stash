@@ -120,13 +120,15 @@ program
 program
     .command('pull')
     .description('Fetch and decrypt your declarative state snapshot (VS Code extensions) from the vault')
-    .action(async () => {
+    .argument('[type]', 'Payload type', 'declarative_state')
+    .argument('[workspace]', 'Workspace name', 'default')
+    .action(async (type, workspace) => {
         try {
             const secretKey = await promptForPassword('Must match the password used when pushing');
             const sessionToken = await resolveSessionToken();
 
-            console.log('\n[1/2] Fetching declarative state snapshot from backend vault...');
-            const response = await axios.get(`${API_BASE_URL}/pull`, {
+            console.log(`\n[1/2] Fetching '${type}' snapshot for workspace '${workspace}' from backend vault...`);
+            const response = await axios.get(`${API_BASE_URL}/pull/${type}/${workspace}`, {
                 headers: {
                     'Cookie': `token=${sessionToken}`
                 },
@@ -156,6 +158,30 @@ program
     });
 
 program
+    .command('delete')
+    .description('Delete a specific workspace session snapshot from the vault')
+    .argument('<workspace>', 'Workspace name to delete')
+    .argument('[type]', 'Payload type', 'workspace_session')
+    .action(async (workspace, type) => {
+        try {
+            const sessionToken = await resolveSessionToken();
+
+            console.log(`\nDeleting snapshot for type '${type}' in workspace '${workspace}'...`);
+            const response = await axios.delete(`${API_BASE_URL}/${type}/${workspace}`, {
+                headers: {
+                    'Cookie': `token=${sessionToken}`
+                },
+                withCredentials: true
+            });
+
+            console.log('\nSuccess:', response.data.message);
+        } catch (error) {
+            console.error('\nDeletion failed:', error.response?.data || error.message);
+            process.exit(1);
+        }
+    });
+
+program
     .command('summary')
     .description('Fetch a lightweight summary across all vault snapshot phases')
     .action(async () => {
@@ -176,6 +202,38 @@ program
             console.error('\nSummary fetch failed:', error.response?.data || error.message);
             process.exit(1);
         }
+    });
+
+program
+    .command('help')
+    .description('Display detailed instructions and command guide for Stash CLI')
+    .action(() => {
+        console.log('\n\x1b[36m====================================================\x1b[0m');
+        console.log('              \x1b[1mSTASH CLI - INSTRUCTIONS\x1b[0m              ');
+        console.log('\x1b[36m====================================================\x1b[0m');
+        console.log('Stash is an encrypted zero-knowledge development state');
+        console.log('and extension syncing utility.\n');
+        
+        console.log('\x1b[1mAvailable Commands:\x1b[0m');
+        console.log('  \x1b[32mpush\x1b[0m');
+        console.log('    Scan, encrypt, and push your declarative state');
+        console.log('    (VS Code extensions) to the backend vault.\n');
+        
+        console.log('  \x1b[32mpull\x1b[0m \x1b[90m[type] [workspace]\x1b[0m');
+        console.log('    Fetch and decrypt a specific snapshot from the vault.');
+        console.log('    \x1b[90mDefaults: type="declarative_state", workspace="default"\x1b[0m\n');
+        
+console.log('  \x1b[31mdelete\x1b[0m \x1b[1m<workspace>\x1b[0m \x1b[90m[type]\x1b[0m');
+        console.log('    Delete a specific snapshot from the vault.');
+        console.log('    \x1b[90m- <workspace>: Required target workspace name (e.g., my-workspace)\x1b[0m');
+        console.log('    \x1b[90m- [type]: Optional payload type (Currently supported: "workspace_session")\x1b[0m');
+        console.log('    \x1b[90m- Default: type="workspace_session" (automatically applied if omitted)\x1b[0m\n');        
+        console.log('  \x1b[33msummary\x1b[0m');
+        console.log('    Fetch a lightweight summary across all vault snapshots.\n');
+        
+        console.log('  \x1b[34mhelp\x1b[0m');
+        console.log('    Display this command guide and instruction manual.');
+        console.log('\x1b[36m====================================================\x1b[0m\n');
     });
 
 program.parse(process.argv);

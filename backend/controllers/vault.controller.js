@@ -1,5 +1,6 @@
 // backend/controllers/vault.controller.js
 import VaultItem from "../models/vault.model.js";
+import configFile from '../config.json' with { type: 'json' };
 
 /**
  * Push/Upsert Snapshot
@@ -21,10 +22,28 @@ export const createVaultItem = async (req, res, next) => {
             schemaVersion = '1.0.0',  
         } = req.body;
 
+        const workspaceName = metadata.workspaceName.toLowerCase().trim();
+
+        // Enforce maximum custom workspace limit per user to prevent index bloat/spam
+        if (metadata.payloadType === 'workspace_session') {
+            const existingWorkspaces = await VaultItem.distinct('metadata.workspaceName', { 
+                user: userId, 
+                'metadata.payloadType': 'workspace_session' 
+            });
+
+            const maxLimit = configFile.vault?.maxWorkspacesPerUser || 15;
+            if (!existingWorkspaces.includes(workspaceName) && existingWorkspaces.length >= maxLimit) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Workspace limit reached. You can only create up to ${maxLimit} unique workspaces.`,
+                });
+            }
+        }
+
         const filter = {
             user: userId,
             'metadata.payloadType': metadata.payloadType,
-            'metadata.workspaceName': metadata.workspaceName.toLowerCase().trim(),
+            'metadata.workspaceName': workspaceName,
         };
 
         const update = {
@@ -32,7 +51,7 @@ export const createVaultItem = async (req, res, next) => {
             payload,
             metadata: {
                 ...metadata,
-                workspaceName: metadata.workspaceName.toLowerCase().trim(),
+                workspaceName,
             },
         };
 
@@ -74,14 +93,14 @@ export const createVaultItem = async (req, res, next) => {
 
 /**
  * @desc    Pull / Fetch a specific encrypted snapshot for CLI restore or viewing
- * @route   GET /api/v1/vault/pull?type=declarative_state&workspace=default (Example URL)
+ * @route   GET /api/v1/vault/pull/:type/:workspace (Example URL)
  * @access  Private
  */
 export const getVaultItems = async (req, res, next) => {
     try {
         const userId = req.user._id;
-        // Zod validation middleware has already sanitized, typed, and applied defaults to req.query
-        const { type: payloadType, workspace: workspaceName } = req.query;
+        // Zod validation middleware has already sanitized and parsed req.params
+        const { type: payloadType, workspace: workspaceName } = req.params;
 
         const vaultItem = await VaultItem.findOne({
             user: userId,
@@ -99,6 +118,39 @@ export const getVaultItems = async (req, res, next) => {
         res.status(200).json({
             success: true,
             data: vaultItem,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * @desc    Delete a specific workspace session snapshot
+ * @route   DELETE /api/v1/vault/:type/:workspace
+ * @access  Private
+ */ 
+export const deleteVaultItem = async (req, res, next) => {
+    try {
+        const userId = req.user._id;
+        // Zod path parameter validation middleware guarantees type is 'workspace_session' and parameters are sanitized
+        const { type: payloadType, workspace: workspaceName } = req.params;
+
+        const deletedItem = await VaultItem.findOneAndDelete({
+            user: userId,
+            'metadata.payloadType': payloadType,
+            'metadata.workspaceName': workspaceName,
+        });
+
+        if (!deletedItem) {
+            return res.status(404).json({
+                success: false,
+                message: `No workspace session found for '${workspaceName}'.`,
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: `Workspace snapshot '${workspaceName}' deleted successfully.`,
         });
     } catch (error) {
         next(error);
