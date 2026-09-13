@@ -4,6 +4,7 @@ import express from "express";
 // Security & Middleware Imports
 import helmet from "helmet";
 import cookieParser from 'cookie-parser';
+import hpp from 'hpp';
 
 // File Imports
 import { 
@@ -37,6 +38,10 @@ server.use(helmet());
 // - If you change this, you'll have to update the schema as well
 server.use(express.json({ limit: '10mb' }));
 server.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Protect against HTTP Parameter Pollution (HPP) attacks
+server.use(hpp());
+
 server.use(cookieParser());
 
 server.use('/api/', rateLimitMiddleware);

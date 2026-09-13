@@ -1,3 +1,4 @@
+// backend/controllers/vault.controller.js
 import VaultItem from "../models/vault.model.js";
 
 /**
@@ -13,50 +14,13 @@ import VaultItem from "../models/vault.model.js";
  */ 
 export const createVaultItem = async (req, res, next) => {
     try {
-        /**
-         * We set schemaVersion in the controller destructuring for two key reasons:
-         * 1) schemaVersion = '1.0.0' uses JavaScript's default parameter assignment:
-         *    - If an older CLI client or a basic script sends a request body without 
-         *      explicitly specifying a schemaVersion (e.g., req.body only has { payload, metadata }), 
-         *      JavaScript automatically sets schemaVersion to '1.0.0'. This prevents undefined from 
-         *      being written into your database.
-         * 2) Forward & Backward Compatibility (Database Contracts):
-         *    - As Stash grows from Declarative State (declarative package lists) to Dotfiles and Active Workspaces, 
-         *      how the client packages and encrypts data might evolve.
-         *      - Preventing Client Crashes: User running an older version of CLI on a laptop but pulling a snapshot created by a newer CLI on another machine
-         *      - Graceful Handling: By storing schemaVersion alongside the payload, the backend can return it to the client. The client CLI can inspect the version before 
-         *        attempting to decrypt or parse the payload
-         */ 
         const userId = req.user._id;
         const {
             payload,
             metadata,
             schemaVersion = '1.0.0',  
         } = req.body;
-        
-        // Validate nested payload fields required for AES-256-GCM
-        if (!payload?.ciphertext 
-            || !payload?.iv 
-            || !payload?.authTag 
-            || !payload?.salt) {
-                return res.status(400).json({
-                    success: false,
-                    error: 'Missing required payload encryption fields (ciphertext, iv, authTag, salt).',
-                });
-        }
 
-        // Validate and normalize metadata fields to match schema requirements
-        if (!metadata 
-            || !metadata.payloadType 
-            || !metadata.workspaceName) {
-            // Return if payloadType is missing instead of defaulting silently
-            return res.status(400).json({
-                success: false,
-                error: 'Missing required metadata fields (payloadType, workspaceName).',
-            });
-        }
-
-        // Upserting snapshot based on user + payloadType + workspaceName
         const filter = {
             user: userId,
             'metadata.payloadType': metadata.payloadType,
@@ -116,9 +80,8 @@ export const createVaultItem = async (req, res, next) => {
 export const getVaultItems = async (req, res, next) => {
     try {
         const userId = req.user._id;
-        // Query by specific payloadType (defaulting to 'declarative_state')
-        const payloadType = req.query.type || 'declarative_state';
-        const workspaceName = (req.query.workspace || 'default').toLowerCase().trim();
+        // Zod validation middleware has already sanitized, typed, and applied defaults to req.query
+        const { type: payloadType, workspace: workspaceName } = req.query;
 
         const vaultItem = await VaultItem.findOne({
             user: userId,
@@ -151,7 +114,6 @@ export const getVaultSummary = async (req, res, next) => {
     try {
         const userId = req.user._id;
 
-        // Query the latest snapshot for each module in parallel
         const [declarativeState, dotfiles, workspaces] = await Promise.all([
             VaultItem.findOne({
                 user: userId, 

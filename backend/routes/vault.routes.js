@@ -1,3 +1,4 @@
+// backend/routes/vault.routes.js
 import { Router } from "express";
 import {
     createVaultItem,
@@ -7,7 +8,8 @@ import {
 import authorize from '../middlewares/auth.middleware.js';
 import { 
     validate, 
-    vaultItemSchema 
+    vaultItemSchema,
+    vaultQuerySchema
 } from '../middlewares/validation.middleware.js';
 
 const vaultRouter = Router();
@@ -20,7 +22,7 @@ vaultRouter.use(authorize);
 
 // But I'll do it the normal, more readable way:
 
-vaultRouter.get('/pull', getVaultItems);
+vaultRouter.get('/pull', validate(vaultQuerySchema, 'query'), getVaultItems);
 vaultRouter.post('/push', validate(vaultItemSchema), createVaultItem);
 vaultRouter.get('/summary', getVaultSummary);
 
