@@ -23,7 +23,9 @@ export async function scanVSCodeExtensions() {
                         version: pkg.version
                     });
                 } catch (err) {
-                    // Skip unreadable package.json files
+                    if (err.code !== 'ENOENT') {
+                        console.warn(`Warning reading ${packageJsonPath}:`, err.message);
+                    }
                 }
             }
         }

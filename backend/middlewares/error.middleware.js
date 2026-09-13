@@ -1,7 +1,6 @@
 const errorMiddleware = (err, req, res, next) => {
     try {
         // Shallow cloning `{ ...err }` loses non-enumerable properties like `name` and `message` on native Error instances.
-        let error = err;
         let statusCode = err.statusCode || err.status || 500;
         let message = err.message || 'Server error';
 
