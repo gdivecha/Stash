@@ -1,4 +1,4 @@
-# Stash — Encrypted Zero-Knowledge Development State Sync
+# Stash - Encrypted Zero-Knowledge Development State Sync
 
 Stash is an encrypted, zero-knowledge development state and extension-syncing utility. Built as a high-performance developer tool, Stash provides a secure backend vault and a command-line interface (CLI) to push, pull, manage, and delete local development configurations, VS Code extensions, and workspace sessions.
 
