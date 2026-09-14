@@ -17,6 +17,12 @@ import {
     scanHomebrewEnvironment,
 } from '../scanners/homebrew.js';
 import {
+    scanNodeEnvironment,
+} from '../scanners/node.js';
+import {
+    scanGitConfigEnvironment,
+} from '../scanners/gitconfig.js';
+import {
     encryptPayload,
     decryptPayload,
 } from './crypto.js';
@@ -242,9 +248,11 @@ export async function handleAction(action) {
                 default: 'default' 
             });
 
-            console.log(chalk.cyan('\n🔍 Scanning system environments (VS Code + Homebrew)...'));
+            console.log(chalk.cyan('\n🔍 Scanning system environments (VS Code + Homebrew + Node + GitConfig)...'));
             const vscodeSnapshot = await scanVSCodeEnvironment();
             const homebrewSnapshot = await scanHomebrewEnvironment();
+            const nodeSnapshot = await scanNodeEnvironment();
+            const gitConfigSnapshot = await scanGitConfigEnvironment();
 
             const masterSecret = await password({ 
                 message: 'Enter master key password to encrypt:', 
@@ -256,13 +264,18 @@ export async function handleAction(action) {
                 timestamp: dayjs().toISOString(),
                 vscode: vscodeSnapshot,
                 homebrew: homebrewSnapshot,
+                node: nodeSnapshot,
+                gitConfig: gitConfigSnapshot,
             };
 
             const encrypted = encryptPayload(snapshotData, masterSecret);
 
             const itemCount = vscodeSnapshot.extensions.length + 
                               homebrewSnapshot.breakdown.formulaeCount + 
-                              homebrewSnapshot.breakdown.casksCount;
+                              homebrewSnapshot.breakdown.casksCount +
+                              nodeSnapshot.breakdown.npmCount +
+                              nodeSnapshot.breakdown.pnpmCount +
+                              gitConfigSnapshot.breakdown.settingsCount;
 
             const payloadBody = {
                 schemaVersion: '1.0.0',
@@ -286,7 +299,7 @@ export async function handleAction(action) {
             };
 
             const res = await api.post('/vault/push', payloadBody);
-            console.log(chalk.green(`\n✅ Encrypted user setup (${itemCount} total items: VS Code extensions + Homebrew formulae/casks) and pushed to vault!`));
+            console.log(chalk.green(`\n✅ Encrypted user setup (${itemCount} total items: VS Code + Homebrew + Node + Git Config) and pushed to vault!`));
             console.dir(res.data, { depth: null, colors: true });
             console.log('');
             break;
