@@ -4,11 +4,14 @@ import password from '@inquirer/password';
 import axios from 'axios';
 import chalk from 'chalk';
 import os from 'os';
+import fs from 'fs/promises';
+import path from 'path';
+import dayjs from 'dayjs';
 
 import machineIdPkg from 'node-machine-id';
 
 import { 
-    scanVSCodeExtensions,
+    scanVSCodeEnvironment,
 } from '../scanners/vscode.js';
 import {
     encryptPayload,
@@ -236,8 +239,8 @@ export async function handleAction(action) {
                 default: 'default' 
             });
 
-            console.log(chalk.cyan('\n🔍 Scanning VS Code extensions...'));
-            const extensions = await scanVSCodeExtensions();
+            console.log(chalk.cyan('\n🔍 Scanning VS Code user environment (extensions, settings, keybindings, and snippets)...'));
+            const vscodeSnapshot = await scanVSCodeEnvironment();
 
             const masterSecret = await password({ 
                 message: 'Enter master key password to encrypt:', 
@@ -246,13 +249,13 @@ export async function handleAction(action) {
 
             const snapshotData = {
                 workspace,
-                timestamp: new Date().toISOString(),
-                vscode: {
-                    extensions,
-                },
+                timestamp: dayjs().toISOString(),
+                vscode: vscodeSnapshot,
             };
 
             const encrypted = encryptPayload(snapshotData, masterSecret);
+
+            const itemCount = vscodeSnapshot.extensions.length;
 
             const payloadBody = {
                 schemaVersion: '1.0.0',
@@ -271,12 +274,12 @@ export async function handleAction(action) {
                         hostname: os.hostname(),
                         platform: process.platform,
                     },
-                    itemCount: extensions.length,
+                    itemCount,
                 },
             };
 
             const res = await api.post('/vault/push', payloadBody);
-            console.log(chalk.green(`\n✅ Encrypted ${extensions.length} VS Code extensions and pushed to vault!`));
+            console.log(chalk.green(`\n✅ Encrypted VS Code user setup (${itemCount} extensions + user configs) and pushed to vault!`));
             console.dir(res.data, { depth: null, colors: true });
             console.log('');
             break;
@@ -301,9 +304,26 @@ export async function handleAction(action) {
 
                 const decryptedObj = decryptPayload(rawPayload, masterSecret);
                 
-                console.log(chalk.green('\n✅ Decryption verified! Decrypted workspace snapshot:'));
-                console.dir(decryptedObj, { depth: null, colors: true });
-                console.log('');
+                // Map payload types to their respective target folder categories
+                let subFolder = 'workspaces';
+                if (type === 'declarative_state') {
+                    subFolder = 'declarative';
+                } else if (type === 'dotfiles') {
+                    subFolder = 'dotfiles';
+                }
+
+                // Construct path: client/snapshots/<category>/
+                const snapshotsDir = path.join(process.cwd(), 'client', 'snapshots', subFolder);
+                await fs.mkdir(snapshotsDir, { recursive: true });
+                
+                // Export the pulled snapshot using dayjs for a clean timestamp format
+                const timeSlug = dayjs().format('YYYY-MM-DD-HHmmss');
+                const exportFilename = `stash-export-${workspace}-${timeSlug}.json`;
+                const exportPath = path.join(snapshotsDir, exportFilename);
+                
+                await fs.writeFile(exportPath, JSON.stringify(decryptedObj, null, 2), 'utf8');
+
+                console.log(chalk.green(`\n✅ Decryption verified! Snapshot exported locally to: client/snapshots/${subFolder}/${exportFilename}\n`));
             } catch (err) {
                 console.log(chalk.red('\n❌ Decryption failed! Invalid master key password or payload was tampered with.\n'));
             }
