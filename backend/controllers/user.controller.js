@@ -20,8 +20,7 @@ export const updateUserInfo = async (req, res, next) => {
         const {
             name, 
             email,
-            currentPassword, 
-            newPassword,
+            password,
         } = req.body;
 
         const user = await User.findById(req.user._id).select('+password');
@@ -33,30 +32,12 @@ export const updateUserInfo = async (req, res, next) => {
             });
         }
 
-        if (newPassword) {
-            if (!currentPassword) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Please provide your current password to update it',
-                });
-            }
-
-            const isMatch = await user.comparePassword(currentPassword);
-
-            if (!isMatch) {
-                return res.status(401).json({
-                    success: false,
-                    message: 'Incorrect current password',
-                });
-            }
-
-            user.password = newPassword;
+        if (password) {
+            user.password = password; 
         }
 
-        if (name)
-            user.name = name;
-        if (email)
-            user.email = email;
+        if (name) user.name = name;
+        if (email) user.email = email;
 
         await user.save();
 
@@ -75,7 +56,6 @@ export const updateUserInfo = async (req, res, next) => {
 
 export const deleteUser = async (req, res, next) => {
     try {
-        // Delete all associated vaulted items before removing the user using the correct model and 'user' field reference
         await VaultItem.deleteMany({ user: req.user._id });
 
         await User.findByIdAndDelete(req.user._id);
