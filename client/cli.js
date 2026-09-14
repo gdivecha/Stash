@@ -52,8 +52,13 @@ program
 
 program
     .command('pull')
-    .description('Pull and decrypt payload from vault')
+    .description('Pull and store encrypted payload ciphertext locally')
     .action(() => handleAction('vault_pull'));
+
+program
+    .command('view')
+    .description('Interactively select and view decrypted contents of local snapshots in-memory')
+    .action(() => handleAction('vault_view'));
 
 program
     .command('summary')

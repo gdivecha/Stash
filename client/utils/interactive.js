@@ -105,8 +105,12 @@ export async function startInteractiveConsole() {
                     value: 'vault_push',
                 },
                 { 
-                    name: '📥 Vault: Pull & Decrypt Snapshot', 
+                    name: '📥 Vault: Pull Encrypted Ciphertext', 
                     value: 'vault_pull',
+                },
+                { 
+                    name: '👁️  Vault: View Local Snapshot (In-Memory Decrypt)', 
+                    value: 'vault_view',
                 },
                 { 
                     name: '📊 Vault: Summary',
@@ -379,42 +383,111 @@ export async function handleAction(action) {
         }
 
         case 'vault_pull': {
-            const type = await input({ message: 'Payload type:', default: 'declarative_state' });
+            const type = await input({ message: 'Payload type (declarative_state, dotfiles, workspace_session):', default: 'declarative_state' });
             const workspace = await input({ message: 'Workspace name:', default: 'default' });
             
             const res = await api.get(`/vault/pull/${type}/${workspace}`);
-            console.log(chalk.cyan('\n📦 Received raw encrypted payload from server vault.'));
-
-            const masterSecret = await password({ 
-                message: 'Enter master key password to decrypt:', 
-                mask: '*'
-            });
+            console.log(chalk.cyan('\n📦 Received raw encrypted payload from server vault. Saving ciphertext locally...'));
 
             try {
                 const responseData = res.data?.data || res.data;
-                const rawPayload = responseData?.payload || responseData;
-
-                const decryptedObj = decryptPayload(rawPayload, masterSecret);
                 
-                let subFolder = 'workspaces';
+                let subFolder = 'declarative';
                 if (type === 'declarative_state') {
                     subFolder = 'declarative';
                 } else if (type === 'dotfiles') {
                     subFolder = 'dotfiles';
+                } else if (type === 'workspace_session') {
+                    subFolder = 'workspace_session';
                 }
 
                 const snapshotsDir = path.join(process.cwd(), 'client', 'snapshots', subFolder);
                 await fs.mkdir(snapshotsDir, { recursive: true });
                 
                 const timeSlug = dayjs().format('YYYY-MM-DD-HHmmss');
-                const exportFilename = `stash-export-${workspace}-${timeSlug}.json`;
+                const exportFilename = `stash-encrypted-${workspace}-${timeSlug}.json`;
                 const exportPath = path.join(snapshotsDir, exportFilename);
                 
-                await fs.writeFile(exportPath, JSON.stringify(decryptedObj, null, 2), 'utf8');
+                await fs.writeFile(exportPath, JSON.stringify(responseData, null, 2), 'utf8');
 
-                console.log(chalk.green(`\n✅ Decryption verified! Snapshot exported locally to: client/snapshots/${subFolder}/${exportFilename}\n`));
+                console.log(chalk.green(`\n✅ Encrypted ciphertext successfully stored locally at: client/snapshots/${subFolder}/${exportFilename}\n`));
             } catch (err) {
-                console.log(chalk.red('\n❌ Decryption failed! Invalid master key password or payload was tampered with.\n'));
+                console.log(chalk.red(`\n❌ Failed to save pulled snapshot: ${err.message}\n`));
+            }
+            break;
+        }
+
+        case 'vault_view': {
+            const category = await select({
+                message: 'Select snapshot category to inspect:',
+                choices: [
+                    { name: '📂 Declarative State', value: 'declarative' },
+                    { name: '📂 Dotfiles', value: 'dotfiles' },
+                    { name: '📂 Workspace Session', value: 'workspace_session' },
+                    { name: '❌ Cancel', value: 'cancel' },
+                ],
+            });
+
+            if (category === 'cancel') break;
+
+            const categoryDir = path.join(process.cwd(), 'client', 'snapshots', category);
+            
+            try {
+                await fs.access(categoryDir);
+            } catch {
+                console.log(chalk.yellow(`\n⚠️ No local snapshots directory found for category [${category}]. Pull some ciphertext first!\n`));
+                break;
+            }
+
+            const files = await fs.readdir(categoryDir);
+            const jsonFiles = files.filter(file => file.endsWith('.json'));
+
+            if (jsonFiles.length === 0) {
+                console.log(chalk.yellow(`\n⚠️ No encrypted snapshot files found in client/snapshots/${category}/\n`));
+                break;
+            }
+
+            const fileChoices = jsonFiles.map(file => {
+                const readableName = file.replace('stash-encrypted-', '').replace('.json', '');
+                return {
+                    name: `📄 ${readableName}`,
+                    value: file,
+                };
+            });
+
+            fileChoices.push({ name: '❌ Cancel', value: 'cancel' });
+
+            const selectedFile = await select({
+                message: 'Select an encrypted snapshot file to view:',
+                choices: fileChoices,
+            });
+
+            if (selectedFile === 'cancel') break;
+
+            const filePath = path.join(categoryDir, selectedFile);
+            const fileContent = await fs.readFile(filePath, 'utf8');
+            const encryptedPayloadWrapper = JSON.parse(fileContent);
+
+            const payloadToDecrypt = encryptedPayloadWrapper?.payload || encryptedPayloadWrapper;
+
+            const masterSecret = await password({ 
+                message: 'Enter master key password to decrypt in-memory:', 
+                mask: '*'
+            });
+
+            try {
+                const decryptedObj = decryptPayload(payloadToDecrypt, masterSecret);
+
+                console.log(chalk.cyan(`\n==================================================`));
+                console.log(chalk.cyan(`       IN-MEMORY DECRYPTED VIEW: ${selectedFile}     `));
+                console.log(chalk.cyan(`==================================================\n`));
+                
+                console.dir(decryptedObj, { depth: null, colors: true });
+                
+                console.log(chalk.cyan(`\n==================================================`));
+                console.log(chalk.green('✅ Session inspection complete. Plaintext data was held strictly in-memory and discarded. Returning to main menu.\n'));
+            } catch (err) {
+                console.log(chalk.red('\n❌ Decryption failed! Invalid master key password or corrupted ciphertext.\n'));
             }
             break;
         }
