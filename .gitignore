@@ -35,3 +35,6 @@ Thumbs.db
 # Diagnostic & Testing reports
 coverage/
 .nyc_output/
+
+# Personal snapshots
+client/snapshots/

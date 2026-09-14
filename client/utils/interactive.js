@@ -14,6 +14,9 @@ import {
     scanVSCodeEnvironment,
 } from '../scanners/vscode.js';
 import {
+    scanHomebrewEnvironment,
+} from '../scanners/homebrew.js';
+import {
     encryptPayload,
     decryptPayload,
 } from './crypto.js';
@@ -239,8 +242,9 @@ export async function handleAction(action) {
                 default: 'default' 
             });
 
-            console.log(chalk.cyan('\n🔍 Scanning VS Code user environment (extensions, settings, keybindings, and snippets)...'));
+            console.log(chalk.cyan('\n🔍 Scanning system environments (VS Code + Homebrew)...'));
             const vscodeSnapshot = await scanVSCodeEnvironment();
+            const homebrewSnapshot = await scanHomebrewEnvironment();
 
             const masterSecret = await password({ 
                 message: 'Enter master key password to encrypt:', 
@@ -251,11 +255,14 @@ export async function handleAction(action) {
                 workspace,
                 timestamp: dayjs().toISOString(),
                 vscode: vscodeSnapshot,
+                homebrew: homebrewSnapshot,
             };
 
             const encrypted = encryptPayload(snapshotData, masterSecret);
 
-            const itemCount = vscodeSnapshot.extensions.length;
+            const itemCount = vscodeSnapshot.extensions.length + 
+                              homebrewSnapshot.breakdown.formulaeCount + 
+                              homebrewSnapshot.breakdown.casksCount;
 
             const payloadBody = {
                 schemaVersion: '1.0.0',
@@ -279,7 +286,7 @@ export async function handleAction(action) {
             };
 
             const res = await api.post('/vault/push', payloadBody);
-            console.log(chalk.green(`\n✅ Encrypted VS Code user setup (${itemCount} extensions + user configs) and pushed to vault!`));
+            console.log(chalk.green(`\n✅ Encrypted user setup (${itemCount} total items: VS Code extensions + Homebrew formulae/casks) and pushed to vault!`));
             console.dir(res.data, { depth: null, colors: true });
             console.log('');
             break;
