@@ -1,4 +1,5 @@
 import select from '@inquirer/select';
+import checkbox from '@inquirer/checkbox';
 import input from '@inquirer/input';
 import password from '@inquirer/password';
 import axios from 'axios';
@@ -20,8 +21,24 @@ import {
     scanNodeEnvironment,
 } from '../scanners/node.js';
 import {
+    scanBrowserExtensions,
+} from '../scanners/browser.js';
+import {
+    scanDockerEnvironment,
+} from '../scanners/docker.js';
+import {
     scanGitConfigEnvironment,
-} from '../scanners/gitconfig.js';
+    scanGitRepositories,
+} from '../scanners/git.js';
+import {
+    scanShellEnvironment,
+} from '../scanners/shell.js';
+import {
+    scanSSHEnvironment,
+} from '../scanners/ssh.js';
+import {
+    scanTerminalEnvironment,
+} from '../scanners/terminal.js';
 import {
     encryptPayload,
     decryptPayload,
@@ -248,34 +265,90 @@ export async function handleAction(action) {
                 default: 'default' 
             });
 
-            console.log(chalk.cyan('\n🔍 Scanning system environments (VS Code + Homebrew + Node + GitConfig)...'));
-            const vscodeSnapshot = await scanVSCodeEnvironment();
-            const homebrewSnapshot = await scanHomebrewEnvironment();
-            const nodeSnapshot = await scanNodeEnvironment();
-            const gitConfigSnapshot = await scanGitConfigEnvironment();
+            const selectedScanners = await checkbox({
+                message: 'Select environment scanners to run:',
+                choices: [
+                    { name: 'VS Code Environment', value: 'vscode', checked: true },
+                    { name: 'Homebrew Environment', value: 'homebrew', checked: true },
+                    { name: 'Node Environment', value: 'node', checked: true },
+                    { name: 'Git Config & Repositories', value: 'git', checked: true },
+                    { name: 'Shell Environment', value: 'shell', checked: true },
+                    { name: 'SSH Environment', value: 'ssh', checked: true },
+                    { name: 'Browser Extensions', value: 'browser', checked: true },
+                    { name: 'Docker Environment', value: 'docker', checked: true },
+                    { name: 'Terminal Environment', value: 'terminal', checked: true },
+                ],
+            });
+
+            let gitSubdir = 'Developer';
+            if (selectedScanners.includes('git')) {
+                gitSubdir = await input({
+                    message: 'Git scan path relative to home (~/):',
+                    default: 'Developer'
+                });
+            }
+
+            console.log(chalk.cyan('\n🔍 Scanning selected system environments...'));
+            
+            const snapshotData = {
+                workspace,
+                timestamp: dayjs().toISOString(),
+            };
+
+            let itemCount = 0;
+
+            if (selectedScanners.includes('vscode')) {
+                snapshotData.vscode = await scanVSCodeEnvironment();
+                itemCount += snapshotData.vscode.extensions.length;
+            }
+            if (selectedScanners.includes('homebrew')) {
+                snapshotData.homebrew = await scanHomebrewEnvironment();
+                itemCount += snapshotData.homebrew.breakdown.formulaeCount + snapshotData.homebrew.breakdown.casksCount;
+            }
+            if (selectedScanners.includes('node')) {
+                snapshotData.node = await scanNodeEnvironment();
+                itemCount += snapshotData.node.breakdown.npmCount + snapshotData.node.breakdown.pnpmCount;
+            }
+            if (selectedScanners.includes('git')) {
+                const gitConfigSnapshot = await scanGitConfigEnvironment();
+                const gitReposSnapshot = await scanGitRepositories(gitSubdir);
+                snapshotData.git = {
+                    config: gitConfigSnapshot,
+                    repositories: gitReposSnapshot,
+                    breakdown: {
+                        settingsCount: gitConfigSnapshot.breakdown.settingsCount,
+                        repoCount: gitReposSnapshot.breakdown.repoCount,
+                    },
+                };
+                itemCount += gitConfigSnapshot.breakdown.settingsCount + gitReposSnapshot.breakdown.repoCount;
+            }
+            if (selectedScanners.includes('shell')) {
+                snapshotData.shell = await scanShellEnvironment();
+                itemCount += snapshotData.shell.breakdown.totalCount;
+            }
+            if (selectedScanners.includes('ssh')) {
+                snapshotData.ssh = await scanSSHEnvironment();
+                itemCount += snapshotData.ssh.breakdown.hostCount;
+            }
+            if (selectedScanners.includes('browser')) {
+                snapshotData.browser = await scanBrowserExtensions();
+                itemCount += snapshotData.browser.breakdown.totalCount;
+            }
+            if (selectedScanners.includes('docker')) {
+                snapshotData.docker = await scanDockerEnvironment();
+                itemCount += snapshotData.docker.breakdown.activeCount;
+            }
+            if (selectedScanners.includes('terminal')) {
+                snapshotData.terminal = await scanTerminalEnvironment();
+                itemCount += snapshotData.terminal.breakdown.tmuxLinesCount + (snapshotData.terminal.breakdown.weztermActive ? 1 : 0);
+            }
 
             const masterSecret = await password({ 
                 message: 'Enter master key password to encrypt:', 
                 mask: '*' 
             });
 
-            const snapshotData = {
-                workspace,
-                timestamp: dayjs().toISOString(),
-                vscode: vscodeSnapshot,
-                homebrew: homebrewSnapshot,
-                node: nodeSnapshot,
-                gitConfig: gitConfigSnapshot,
-            };
-
             const encrypted = encryptPayload(snapshotData, masterSecret);
-
-            const itemCount = vscodeSnapshot.extensions.length + 
-                              homebrewSnapshot.breakdown.formulaeCount + 
-                              homebrewSnapshot.breakdown.casksCount +
-                              nodeSnapshot.breakdown.npmCount +
-                              nodeSnapshot.breakdown.pnpmCount +
-                              gitConfigSnapshot.breakdown.settingsCount;
 
             const payloadBody = {
                 schemaVersion: '1.0.0',
@@ -299,7 +372,7 @@ export async function handleAction(action) {
             };
 
             const res = await api.post('/vault/push', payloadBody);
-            console.log(chalk.green(`\n✅ Encrypted user setup (${itemCount} total items: VS Code + Homebrew + Node + Git Config) and pushed to vault!`));
+            console.log(chalk.green(`\n✅ Encrypted user setup (${itemCount} total items across selected system scopes) and pushed to vault!`));
             console.dir(res.data, { depth: null, colors: true });
             console.log('');
             break;
@@ -318,13 +391,11 @@ export async function handleAction(action) {
             });
 
             try {
-                // Safely extract ciphertext payload regardless of API wrapper depth
                 const responseData = res.data?.data || res.data;
                 const rawPayload = responseData?.payload || responseData;
 
                 const decryptedObj = decryptPayload(rawPayload, masterSecret);
                 
-                // Map payload types to their respective target folder categories
                 let subFolder = 'workspaces';
                 if (type === 'declarative_state') {
                     subFolder = 'declarative';
@@ -332,11 +403,9 @@ export async function handleAction(action) {
                     subFolder = 'dotfiles';
                 }
 
-                // Construct path: client/snapshots/<category>/
                 const snapshotsDir = path.join(process.cwd(), 'client', 'snapshots', subFolder);
                 await fs.mkdir(snapshotsDir, { recursive: true });
                 
-                // Export the pulled snapshot using dayjs for a clean timestamp format
                 const timeSlug = dayjs().format('YYYY-MM-DD-HHmmss');
                 const exportFilename = `stash-export-${workspace}-${timeSlug}.json`;
                 const exportPath = path.join(snapshotsDir, exportFilename);
