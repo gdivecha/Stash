@@ -409,7 +409,8 @@ export async function handleAction(action) {
                 mask: '*' 
             });
 
-            const encrypted = encryptPayload(snapshotData, masterSecret);
+            // Bound cryptographically to the active user account email
+            const encrypted = encryptPayload(snapshotData, masterSecret, activeAccountEmail);
 
             const payloadBody = {
                 schemaVersion: '1.0.0',
@@ -458,7 +459,8 @@ export async function handleAction(action) {
                     subFolder = 'workspace_session';
                 }
 
-                const snapshotsDir = path.join(process.cwd(), 'client', 'snapshots', subFolder);
+                // Namespaced locally by active account email
+                const snapshotsDir = path.join(process.cwd(), 'client', 'snapshots', activeAccountEmail, subFolder);
                 await fs.mkdir(snapshotsDir, { recursive: true });
                 
                 const timeSlug = dayjs().format('YYYY-MM-DD-HHmmss');
@@ -467,7 +469,7 @@ export async function handleAction(action) {
                 
                 await fs.writeFile(exportPath, JSON.stringify(responseData, null, 2), 'utf8');
 
-                console.log(chalk.green(`\n✅ Encrypted ciphertext successfully stored locally at: client/snapshots/${subFolder}/${exportFilename}\n`));
+                console.log(chalk.green(`\n✅ Encrypted ciphertext successfully stored locally at: client/snapshots/${activeAccountEmail}/${subFolder}/${exportFilename}\n`));
             } catch (err) {
                 console.log(chalk.red(`\n❌ Failed to save pulled snapshot: ${err.message}\n`));
             }
@@ -487,12 +489,13 @@ export async function handleAction(action) {
 
             if (category === 'cancel') break;
 
-            const categoryDir = path.join(process.cwd(), 'client', 'snapshots', category);
+            // Restrict view directory scope strictly to the active user's local folder
+            const categoryDir = path.join(process.cwd(), 'client', 'snapshots', activeAccountEmail, category);
             
             try {
                 await fs.access(categoryDir);
             } catch {
-                console.log(chalk.yellow(`\n⚠️ No local snapshots directory found for category [${category}]. Pull some ciphertext first!\n`));
+                console.log(chalk.yellow(`\n⚠️ No local snapshots directory found for category [${category}] under account [${activeAccountEmail}]. Pull some ciphertext first!\n`));
                 break;
             }
 
@@ -500,7 +503,7 @@ export async function handleAction(action) {
             const jsonFiles = files.filter(file => file.endsWith('.json'));
 
             if (jsonFiles.length === 0) {
-                console.log(chalk.yellow(`\n⚠️ No encrypted snapshot files found in client/snapshots/${category}/\n`));
+                console.log(chalk.yellow(`\n⚠️ No encrypted snapshot files found in client/snapshots/${activeAccountEmail}/${category}/\n`));
                 break;
             }
 
@@ -533,7 +536,8 @@ export async function handleAction(action) {
             });
 
             try {
-                const decryptedObj = decryptPayload(payloadToDecrypt, masterSecret);
+                // Pass activeAccountEmail to enforce cryptographic user-binding verification
+                const decryptedObj = decryptPayload(payloadToDecrypt, masterSecret, activeAccountEmail);
 
                 console.log(chalk.cyan(`\n==================================================`));
                 console.log(chalk.cyan(`       IN-MEMORY DECRYPTED VIEW: ${selectedFile}     `));
@@ -544,7 +548,7 @@ export async function handleAction(action) {
                 console.log(chalk.cyan(`\n==================================================`));
                 console.log(chalk.green('✅ Session inspection complete. Plaintext data was held strictly in-memory and discarded. Returning to main menu.\n'));
             } catch (err) {
-                console.log(chalk.red('\n❌ Decryption failed! Invalid master key password or corrupted ciphertext.\n'));
+                console.log(chalk.red('\n❌ Decryption failed! Invalid master key password, mismatched user account context, or corrupted ciphertext.\n'));
             }
             break;
         }
