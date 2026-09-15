@@ -64,6 +64,43 @@ api.interceptors.request.use((config) => {
     return config;
 });
 
+// Response interceptor to gracefully handle token expiration (401 Unauthorized)
+api.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+        const originalRequest = error.config;
+        if (error.response && error.response.status === 401 && activeAccountEmail && !originalRequest._retry) {
+            originalRequest._retry = true;
+            
+            const expiredEmail = activeAccountEmail;
+            console.log(chalk.yellow(`\n⚠️ Session expired or unauthorized for [${expiredEmail}]. Cleaning up session...`));
+            
+            activeSessions.delete(expiredEmail);
+            const remainingAccounts = Array.from(activeSessions.keys());
+
+            if (remainingAccounts.length === 0) {
+                activeAccountEmail = null;
+                console.log(chalk.red('❌ Your active session has expired and no other accounts remain. Please sign in again.\n'));
+            } else if (remainingAccounts.length === 1) {
+                activeAccountEmail = remainingAccounts[0];
+                console.log(chalk.green(`🔄 Automatically switched to remaining active account: [${activeAccountEmail}]\n`));
+            } else {
+                console.log(chalk.yellow('Please select a fallback account for your current session:'));
+                const fallbackChoice = await select({
+                    message: 'Select fallback account:',
+                    choices: remainingAccounts.map(email => ({
+                        name: `👤 ${email}`,
+                        value: email,
+                    })),
+                });
+                activeAccountEmail = fallbackChoice;
+                console.log(chalk.green(`\n✅ Active session successfully switched to: [${activeAccountEmail}]\n`));
+            }
+        }
+        return Promise.reject(error);
+    }
+);
+
 export function setSessionToken(token, email = 'default') {
     activeSessions.set(email, token);
     activeAccountEmail = email;
@@ -251,10 +288,8 @@ export async function handleAction(action) {
 
             const currentEmail = activeAccountEmail;
             
-            // Call server sign out
             await api.post('/auth/sign-out').catch(() => {});
             
-            // Remove from local memory registry
             activeSessions.delete(currentEmail);
             console.log(chalk.yellow(`\n✅ Account [${currentEmail}] signed out and removed from memory.`));
 
