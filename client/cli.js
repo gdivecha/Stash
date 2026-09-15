@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import { startInteractiveConsole, handleAction } from './utils/interactive.js';
+import { startInteractiveConsole } from './utils/interactive.js';
+import { handleAuthAction } from './commands/auth.js';
+import { handleUserAction } from './commands/user.js';
+import { handleVaultAction } from './commands/vault.js';
 
 const program = new Command();
 
@@ -21,54 +24,54 @@ program
 program
     .command('signup')
     .description('Sign up a new account')
-    .action(() => handleAction('auth_signup'));
+    .action(() => handleAuthAction('auth_signup'));
 
 program
     .command('signin')
     .description('Sign in to account session')
-    .action(() => handleAction('auth_signin'));
+    .action(() => handleAuthAction('auth_signin'));
 
 program
     .command('signout')
     .description('Sign out and destroy session')
-    .action(() => handleAction('auth_signout'));
+    .action(() => handleAuthAction('auth_signout'));
 
 // Profile Commands
 program
     .command('me')
     .description('Get current user profile')
-    .action(() => handleAction('user_me'));
+    .action(() => handleUserAction('user_me'));
 
 program
     .command('update-user')
     .description('Update user profile details')
-    .action(() => handleAction('user_update'));
+    .action(() => handleUserAction('user_update'));
 
 // Vault Commands
 program
     .command('push')
     .description('Encrypt and push payload to vault')
-    .action(() => handleAction('vault_push'));
+    .action(() => handleVaultAction('vault_push'));
 
 program
     .command('pull')
     .description('Pull and store encrypted payload ciphertext locally')
-    .action(() => handleAction('vault_pull'));
+    .action(() => handleVaultAction('vault_pull'));
 
 program
     .command('view')
     .description('Interactively select and view decrypted contents of local snapshots in-memory')
-    .action(() => handleAction('vault_view'));
+    .action(() => handleVaultAction('vault_view'));
 
 program
     .command('summary')
     .description('Display vault summary')
-    .action(() => handleAction('vault_summary'));
+    .action(() => handleVaultAction('vault_summary'));
 
 program
     .command('delete')
     .description('Delete a snapshot from vault')
-    .action(() => handleAction('vault_delete'));
+    .action(() => handleVaultAction('vault_delete'));
 
 // Default to interactive console when run without arguments
 if (!process.argv.slice(2).length) {
