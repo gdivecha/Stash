@@ -176,27 +176,28 @@ const vaultItemSchema = new mongoose.Schema({
     }
 }, { timestamps: true });
 
-// Primary Index: Enforces database-level uniqueness per user + payloadType + workspaceName
+// Primary Index: Enforces uniqueness per user + payloadType + workspaceName + deviceId 
+// ONLY for declarative_state and dotfiles. Workspace sessions remain multi-record history.
 vaultItemSchema.index(
     { 
         user: 1, 
         'metadata.payloadType': 1, 
-        'metadata.workspaceName': 1 
+        'metadata.workspaceName': 1,
+        'metadata.device.deviceId': 1
     }, 
-    { unique: true }
+    { 
+        unique: true,
+        partialFilterExpression: { 
+            'metadata.payloadType': { $in: ['declarative_state', 'dotfiles'] } 
+        } 
+    }
 );
 
-// Secondary Index: Powers fast listing queries sorted by most recent activity (e.g., stash context list)
-// Compound index for fast queries when pulling a specific snapshot type per user
-/**
- * - Databases slow down significantly as they grow if they have to scan every row to find a user's data.
- * - This creates a high-speed lookup shortcut in MongoDB. When you request your latest declarative_state snapshot, 
- *   MongoDB uses this index to jump directly to your user ID -> the specific payload type -> sorted by newest timestamp, returning the 
- *   exact snapshot in milliseconds
- */
+// Secondary Index: Powers fast listing queries sorted by most recent activity per device/type
 vaultItemSchema.index({ 
     user: 1, 
     'metadata.payloadType': 1, 
+    'metadata.device.deviceId': 1,
     updatedAt: -1 
 });
 

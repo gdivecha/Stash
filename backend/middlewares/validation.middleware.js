@@ -75,6 +75,11 @@ export const vaultDeleteParamSchema = z.object({
     workspace: workspaceNameSchema,
 });
 
+// Vault Query Schemas (for validating incoming query parameters like deviceId during pull requests)
+export const vaultQuerySchema = z.object({
+    deviceId: z.string().max(128).regex(/^[a-zA-Z0-9-_.:]*$/, 'Invalid characters in deviceId query param').optional(),
+});
+
 // Express Validation Middleware
 export const validate = (schema, source = 'body') => async (req, res, next) => {
     try {

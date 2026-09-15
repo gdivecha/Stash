@@ -485,6 +485,10 @@ export async function handleAction(action) {
 
             const encrypted = encryptPayload(snapshotData, masterSecret, activeAccountEmail);
 
+            // Generate hybrid device identifier (e.g., "MacBook-Pro-7a8f9c")
+            const shortId = machineIdPkg.machineIdSync().slice(0, 6);
+            const deviceIdentifier = `${os.hostname()}-${shortId}`;
+
             const payloadBody = {
                 schemaVersion: '1.0.0',
                 payload: {
@@ -497,7 +501,7 @@ export async function handleAction(action) {
                     payloadType: type,
                     workspaceName: workspace,
                     device: { 
-                        deviceId: machineIdPkg.machineIdSync(),
+                        deviceId: deviceIdentifier,
                         arch: process.arch,
                         hostname: os.hostname(),
                         platform: process.platform,
@@ -517,7 +521,11 @@ export async function handleAction(action) {
             const type = await input({ message: 'Payload type (declarative_state, dotfiles, workspace_session):', default: 'declarative_state' });
             const workspace = await input({ message: 'Workspace name:', default: 'default' });
             
-            const res = await api.get(`/vault/pull/${type}/${workspace}`);
+            // Generate current machine's device identifier to pull this specific device's state
+            const shortId = machineIdPkg.machineIdSync().slice(0, 6);
+            const deviceIdentifier = `${os.hostname()}-${shortId}`;
+
+            const res = await api.get(`/vault/pull/${type}/${workspace}?deviceId=${deviceIdentifier}`);
             console.log(chalk.cyan('\n📦 Received raw encrypted payload from server vault. Saving ciphertext locally...'));
 
             try {
@@ -532,7 +540,7 @@ export async function handleAction(action) {
                     subFolder = 'workspace_session';
                 }
 
-                const snapshotsDir = path.join(process.cwd(), 'client', 'snapshots', activeAccountEmail, subFolder);
+                const snapshotsDir = path.join(process.cwd(), 'client', 'snapshots', activeAccountEmail, deviceIdentifier, subFolder);
                 await fs.mkdir(snapshotsDir, { recursive: true });
                 
                 const timeSlug = dayjs().format('YYYY-MM-DD-HHmmss');
@@ -541,7 +549,7 @@ export async function handleAction(action) {
                 
                 await fs.writeFile(exportPath, JSON.stringify(responseData, null, 2), 'utf8');
 
-                console.log(chalk.green(`\n✅ Encrypted ciphertext successfully stored locally at: client/snapshots/${activeAccountEmail}/${subFolder}/${exportFilename}\n`));
+                console.log(chalk.green(`\n✅ Encrypted ciphertext successfully stored locally at: client/snapshots/${activeAccountEmail}/${deviceIdentifier}/${subFolder}/${exportFilename}\n`));
             } catch (err) {
                 console.log(chalk.red(`\n❌ Failed to save pulled snapshot: ${err.message}\n`));
             }
@@ -549,6 +557,39 @@ export async function handleAction(action) {
         }
 
         case 'vault_view': {
+            const userSnapshotsDir = path.join(process.cwd(), 'client', 'snapshots', activeAccountEmail);
+            
+            try {
+                await fs.access(userSnapshotsDir);
+            } catch {
+                console.log(chalk.yellow(`\n⚠️ No local snapshots directory found for account [${activeAccountEmail}]. Pull some ciphertext first!\n`));
+                break;
+            }
+
+            const entries = await fs.readdir(userSnapshotsDir, { withFileTypes: true });
+            const deviceDirs = entries.filter(dirent => dirent.isDirectory()).map(dirent => dirent.name);
+
+            if (deviceDirs.length === 0) {
+                console.log(chalk.yellow(`\n⚠️ No device snapshot folders found under client/snapshots/${activeAccountEmail}/\n`));
+                break;
+            }
+
+            const shortId = machineIdPkg.machineIdSync().slice(0, 6);
+            const currentDeviceIdentifier = `${os.hostname()}-${shortId}`;
+
+            const deviceChoices = deviceDirs.map(deviceId => ({
+                name: deviceId === currentDeviceIdentifier ? `💻 ${deviceId} (This Device)` : `💻 ${deviceId}`,
+                value: deviceId,
+            }));
+            deviceChoices.push({ name: '❌ Cancel', value: 'cancel' });
+
+            const selectedDevice = await select({
+                message: 'Select device to inspect snapshots for:',
+                choices: deviceChoices,
+            });
+
+            if (selectedDevice === 'cancel') break;
+
             const category = await select({
                 message: 'Select snapshot category to inspect:',
                 choices: [
@@ -561,12 +602,12 @@ export async function handleAction(action) {
 
             if (category === 'cancel') break;
 
-            const categoryDir = path.join(process.cwd(), 'client', 'snapshots', activeAccountEmail, category);
+            const categoryDir = path.join(userSnapshotsDir, selectedDevice, category);
             
             try {
                 await fs.access(categoryDir);
             } catch {
-                console.log(chalk.yellow(`\n⚠️ No local snapshots directory found for category [${category}] under account [${activeAccountEmail}]. Pull some ciphertext first!\n`));
+                console.log(chalk.yellow(`\n⚠️ No local snapshots directory found for category [${category}] on device [${selectedDevice}].\n`));
                 break;
             }
 
@@ -574,7 +615,7 @@ export async function handleAction(action) {
             const jsonFiles = files.filter(file => file.endsWith('.json'));
 
             if (jsonFiles.length === 0) {
-                console.log(chalk.yellow(`\n⚠️ No encrypted snapshot files found in client/snapshots/${activeAccountEmail}/${category}/\n`));
+                console.log(chalk.yellow(`\n⚠️ No encrypted snapshot files found in client/snapshots/${activeAccountEmail}/${selectedDevice}/${category}/\n`));
                 break;
             }
 
@@ -610,7 +651,7 @@ export async function handleAction(action) {
                 const decryptedObj = decryptPayload(payloadToDecrypt, masterSecret, activeAccountEmail);
 
                 console.log(chalk.cyan(`\n==================================================`));
-                console.log(chalk.cyan(`       IN-MEMORY DECRYPTED VIEW: ${selectedFile}     `));
+                console.log(chalk.cyan(`   IN-MEMORY VIEW: Device [${selectedDevice}] / [${selectedFile}]`));
                 console.log(chalk.cyan(`==================================================\n`));
                 
                 console.dir(decryptedObj, { depth: null, colors: true });

@@ -23,6 +23,7 @@ export const createVaultItem = async (req, res, next) => {
         } = req.body;
 
         const workspaceName = metadata.workspaceName.toLowerCase().trim();
+        const deviceId = metadata.device?.deviceId;
 
         // Enforce maximum custom workspace limit per user to prevent index bloat/spam
         if (metadata.payloadType === 'workspace_session') {
@@ -46,6 +47,11 @@ export const createVaultItem = async (req, res, next) => {
             'metadata.workspaceName': workspaceName,
         };
 
+        // If a deviceId is present, scope the upsert filter to that specific device
+        if (deviceId) {
+            filter['metadata.device.deviceId'] = deviceId;
+        }
+
         const update = {
             schemaVersion: schemaVersion || '1.0.0',
             payload,
@@ -61,29 +67,11 @@ export const createVaultItem = async (req, res, next) => {
             runValidators: true,
         };
 
-        // Upsert: Update existing snapshot for this payloadType or create a new 
-        /**
-         * This single function call is the core sync operation for Stash's backend. Instead of creating a new 
-         * database record every time a user backs up their machine, findOneAndUpdate performs an upsert 
-         * (Update + Insert).
-         * 
-         * .... VaultItem.findOneAndUpdate() below has 3 parameters:
-         * - filter: How to find the record -> uses user's id and payload type such as 'declarative_state'
-         * - updateData: What data to write -> uses user's id, schema version, payload and metadata
-         *   - Updates old encrypted payload with newly generated local encryption values
-         *   - Captures cleartext metadata (device information and item counts) so the backend can serve
-         *     metadata summaries without needing to decrypt the payload.
-         * - options: How MongoDB should handle the operation -> here's how mongodb behaves:
-         *   - upsert: Update if present, Insert if missing
-         *   - new: Tells Mongoose to return the updated (new not old) document after the write finishes
-         *   - runValidators: Forces MongoDB to validate the new data against your Mongoose VaultItemSchema rules 
-         *     (ensuring required fields aren't missing or malformed) before saving
-         */ 
         const item = await VaultItem.findOneAndUpdate(filter, update, options);
 
         res.status(200).json({
             success: true,
-            message: `Snapshot '${item.metadata.workspaceName}' synced successfully.`,
+            message: `Snapshot '${item.metadata.workspaceName}' synced successfully for device [${deviceId || 'unknown'}].`,
             data: { item },
         });
     } catch (error) {
@@ -93,7 +81,7 @@ export const createVaultItem = async (req, res, next) => {
 
 /**
  * @desc    Pull / Fetch a specific encrypted snapshot for CLI restore or viewing
- * @route   GET /api/v1/vault/pull/:type/:workspace (Example URL)
+ * @route   GET /api/v1/vault/pull/:type/:workspace?deviceId=... (Example URL)
  * @access  Private
  */
 export const getVaultItems = async (req, res, next) => {
@@ -101,17 +89,25 @@ export const getVaultItems = async (req, res, next) => {
         const userId = req.user._id;
         // Zod validation middleware has already sanitized and parsed req.params
         const { type: payloadType, workspace: workspaceName } = req.params;
+        const { deviceId } = req.query; // Optional device filter
 
-        const vaultItem = await VaultItem.findOne({
+        const query = {
             user: userId,
             'metadata.payloadType': payloadType,
             'metadata.workspaceName': workspaceName,
-        });
+        };
+
+        if (deviceId) {
+            query['metadata.device.deviceId'] = deviceId;
+        }
+
+        // If no deviceId is provided, sort by newest update to grab the latest across any device
+        const vaultItem = await VaultItem.findOne(query).sort({ updatedAt: -1 });
 
         if (!vaultItem) {
             return res.status(404).json({
                 success: false,
-                message: `No vault snapshot found for type '${payloadType}' in workspace '${workspaceName}'.`,
+                message: `No vault snapshot found for type '${payloadType}' in workspace '${workspaceName}'${deviceId ? ` on device [${deviceId}]` : ''}.`,
             });
         }
 
@@ -134,17 +130,24 @@ export const deleteVaultItem = async (req, res, next) => {
         const userId = req.user._id;
         // Zod path parameter validation middleware guarantees type is 'workspace_session' and parameters are sanitized
         const { type: payloadType, workspace: workspaceName } = req.params;
+        const { deviceId } = req.query;
 
-        const deletedItem = await VaultItem.findOneAndDelete({
+        const query = {
             user: userId,
             'metadata.payloadType': payloadType,
             'metadata.workspaceName': workspaceName,
-        });
+        };
+
+        if (deviceId) {
+            query['metadata.device.deviceId'] = deviceId;
+        }
+
+        const deletedItem = await VaultItem.findOneAndDelete(query);
 
         if (!deletedItem) {
             return res.status(404).json({
                 success: false,
-                message: `No workspace session found for '${workspaceName}'.`,
+                message: `No workspace session found for '${workspaceName}'${deviceId ? ` on device [${deviceId}]` : ''}.`,
             });
         }
 
