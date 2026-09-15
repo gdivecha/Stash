@@ -521,12 +521,58 @@ export async function handleAction(action) {
             const type = await input({ message: 'Payload type (declarative_state, dotfiles, workspace_session):', default: 'declarative_state' });
             const workspace = await input({ message: 'Workspace name:', default: 'default' });
             
-            // Generate current machine's device identifier to pull this specific device's state
-            const shortId = machineIdPkg.machineIdSync().slice(0, 6);
-            const deviceIdentifier = `${os.hostname()}-${shortId}`;
+            let selectedDevice;
+            try {
+                const summaryRes = await api.get('/vault/summary');
+                const summaryData = summaryRes.data?.data || {};
+                
+                let deviceMap = {};
+                if (type === 'declarative_state') {
+                    deviceMap = summaryData.declarativeState || {};
+                } else if (type === 'dotfiles') {
+                    deviceMap = summaryData.dotfiles || {};
+                } else if (type === 'workspace_session') {
+                    const matchingWorkspaces = (summaryData.workspaces || []).filter(w => w.workspaceName === workspace);
+                    matchingWorkspaces.forEach(w => {
+                        deviceMap[w.deviceId] = { updatedAt: w.updatedAt, metadata: w.metadata };
+                    });
+                }
 
-            const res = await api.get(`/vault/pull/${type}/${workspace}?deviceId=${deviceIdentifier}`);
-            console.log(chalk.cyan('\n📦 Received raw encrypted payload from server vault. Saving ciphertext locally...'));
+                const deviceIds = Object.keys(deviceMap);
+
+                if (deviceIds.length === 0) {
+                    console.log(chalk.yellow(`\n⚠️ No snapshots found in your vault for type [${type}] and workspace [${workspace}].\n`));
+                    break;
+                }
+
+                const shortId = machineIdPkg.machineIdSync().slice(0, 6);
+                const currentDeviceIdentifier = `${os.hostname()}-${shortId}`;
+
+                const choices = deviceIds.map(deviceId => {
+                    const info = deviceMap[deviceId];
+                    const dateStr = info?.updatedAt ? dayjs(info.updatedAt).format('YYYY-MM-DD HH:mm:ss') : 'Unknown time';
+                    const isCurrent = deviceId === currentDeviceIdentifier;
+                    return {
+                        name: `${isCurrent ? '💻 (This Device)' : '🖥️'} ${deviceId} — (Updated: ${dateStr})`,
+                        value: deviceId,
+                    };
+                });
+                choices.push({ name: '❌ Cancel', value: 'cancel' });
+
+                selectedDevice = await select({
+                    message: 'Select which device snapshot you want to pull from:',
+                    choices,
+                });
+
+                if (selectedDevice === 'cancel') break;
+            } catch (err) {
+                console.log(chalk.yellow('\n⚠️ Could not fetch multi-device summary. Falling back to current machine ID...'));
+                const shortId = machineIdPkg.machineIdSync().slice(0, 6);
+                selectedDevice = `${os.hostname()}-${shortId}`;
+            }
+
+            const res = await api.get(`/vault/pull/${type}/${workspace}?deviceId=${selectedDevice}`);
+            console.log(chalk.cyan(`\n📦 Received raw encrypted payload from server vault for device [${selectedDevice}]. Saving ciphertext locally...`));
 
             try {
                 const responseData = res.data?.data || res.data;
@@ -540,7 +586,7 @@ export async function handleAction(action) {
                     subFolder = 'workspace_session';
                 }
 
-                const snapshotsDir = path.join(process.cwd(), 'client', 'snapshots', activeAccountEmail, deviceIdentifier, subFolder);
+                const snapshotsDir = path.join(process.cwd(), 'client', 'snapshots', activeAccountEmail, selectedDevice, subFolder);
                 await fs.mkdir(snapshotsDir, { recursive: true });
                 
                 const timeSlug = dayjs().format('YYYY-MM-DD-HHmmss');
@@ -549,7 +595,7 @@ export async function handleAction(action) {
                 
                 await fs.writeFile(exportPath, JSON.stringify(responseData, null, 2), 'utf8');
 
-                console.log(chalk.green(`\n✅ Encrypted ciphertext successfully stored locally at: client/snapshots/${activeAccountEmail}/${deviceIdentifier}/${subFolder}/${exportFilename}\n`));
+                console.log(chalk.green(`\n✅ Encrypted ciphertext successfully stored locally at: client/snapshots/${activeAccountEmail}/${selectedDevice}/${subFolder}/${exportFilename}\n`));
             } catch (err) {
                 console.log(chalk.red(`\n❌ Failed to save pulled snapshot: ${err.message}\n`));
             }

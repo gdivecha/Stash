@@ -50,6 +50,8 @@ export const createVaultItem = async (req, res, next) => {
         // If a deviceId is present, scope the upsert filter to that specific device
         if (deviceId) {
             filter['metadata.device.deviceId'] = deviceId;
+        } else {
+            filter['metadata.device.deviceId'] = null;
         }
 
         const update = {
@@ -161,7 +163,7 @@ export const deleteVaultItem = async (req, res, next) => {
 };
 
 /**
- * @desc    Fetch lightweight summary across all modules for UI dashboard
+ * @desc    Fetch lightweight multi-device summary across all modules for UI dashboard / CLI
  * @route   GET /api/v1/vault/summary
  * @access  Private
  */
@@ -169,38 +171,50 @@ export const getVaultSummary = async (req, res, next) => {
     try {
         const userId = req.user._id;
 
-        const [declarativeState, dotfiles, workspaces] = await Promise.all([
-            VaultItem.findOne({
-                user: userId, 
-                'metadata.payloadType': 'declarative_state'
-            }).select('-payload').sort({ updatedAt: -1 }), // Exclude heavy encrypted ciphertext for fast loading
-            VaultItem.findOne({
-                user: userId, 
-                'metadata.payloadType': 'dotfiles'
-            }).select('-payload').sort({ updatedAt: -1 }),     
-            VaultItem.find({
-                user: userId, 
-                'metadata.payloadType': 'workspace_session'
-            }).select('-payload').sort({ updatedAt: -1 }),    
-        ]);
+        // Fetch all lightweight records for the user excluding heavy encrypted payload
+        const allItems = await VaultItem.find({ user: userId })
+            .select('-payload')
+            .sort({ updatedAt: -1 });
+
+        const declarativeStateMap = {};
+        const dotfilesMap = {};
+        const workspaces = [];
+
+        for (const item of allItems) {
+            const type = item.metadata.payloadType;
+            const deviceId = item.metadata.device?.deviceId || 'unknown-device';
+
+            if (type === 'declarative_state') {
+                if (!declarativeStateMap[deviceId]) {
+                    declarativeStateMap[deviceId] = {
+                        metadata: item.metadata,
+                        updatedAt: item.updatedAt
+                    };
+                }
+            } else if (type === 'dotfiles') {
+                if (!dotfilesMap[deviceId]) {
+                    dotfilesMap[deviceId] = {
+                        metadata: item.metadata,
+                        updatedAt: item.updatedAt
+                    };
+                }
+            } else if (type === 'workspace_session') {
+                workspaces.push({
+                    id: item._id,
+                    workspaceName: item.metadata.workspaceName,
+                    deviceId: deviceId,
+                    metadata: item.metadata,
+                    updatedAt: item.updatedAt,
+                });
+            }
+        }
 
         res.status(200).json({
             success: true,
             data: {
-                declarativeState: declarativeState ? { 
-                    metadata: declarativeState.metadata,
-                    updatedAt: declarativeState.updatedAt
-                } : null,
-                dotfiles: dotfiles ? { 
-                    metadata: dotfiles.metadata,
-                    updatedAt: dotfiles.updatedAt
-                } : null,
-                workspaces: workspaces.map((session) => ({ 
-                    id: session._id,
-                    workspaceName: session.metadata.workspaceName,
-                    metadata: session.metadata,
-                    updatedAt: session.updatedAt,
-                })),
+                declarativeState: Object.keys(declarativeStateMap).length > 0 ? declarativeStateMap : null,
+                dotfiles: Object.keys(dotfilesMap).length > 0 ? dotfilesMap : null,
+                workspaces: workspaces,
             },
         });
     } catch (error) {

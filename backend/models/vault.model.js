@@ -177,7 +177,7 @@ const vaultItemSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Primary Index: Enforces uniqueness per user + payloadType + workspaceName + deviceId 
-// ONLY for declarative_state and dotfiles. Workspace sessions remain multi-record history.
+// ONLY for declarative_state and dotfiles when deviceId is a valid string.
 vaultItemSchema.index(
     { 
         user: 1, 
@@ -188,7 +188,8 @@ vaultItemSchema.index(
     { 
         unique: true,
         partialFilterExpression: { 
-            'metadata.payloadType': { $in: ['declarative_state', 'dotfiles'] } 
+            'metadata.payloadType': { $in: ['declarative_state', 'dotfiles'] },
+            'metadata.device.deviceId': { $type: 'string' }
         } 
     }
 );
