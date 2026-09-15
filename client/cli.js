@@ -64,9 +64,14 @@ program
     .action(() => handleVaultAction('vault_view'));
 
 program
-    .command('view-local')
-    .description('Inspect and decrypt local snapshots offline without logging in')
-    .action(() => handleVaultAction('vault_view_offline'));
+    .command('export')
+    .description('Export a signed, shared snapshot package for external recipients')
+    .action(() => handleVaultAction('vault_export'));
+
+program
+    .command('view-shared')
+    .description('Inspect and verify cryptographic signatures of sharable or received packages')
+    .action(() => handleVaultAction('vault_view_shared'));
 
 program
     .command('summary')

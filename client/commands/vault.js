@@ -10,7 +10,14 @@ import path from 'path';
 import machineIdPkg from 'node-machine-id';
 
 import { api, getActiveAccount } from '../utils/context.js';
-import { encryptPayload, decryptPayload } from '../utils/crypto.js';
+import { 
+    encryptPayload, 
+    decryptPayload, 
+    encryptSharablePayload, 
+    decryptSharablePayload, 
+    signData, 
+    verifySignature 
+} from '../utils/crypto.js';
 import { validateMasterPassword } from '../utils/validator.js';
 
 // Import your environment scanners
@@ -23,6 +30,16 @@ import { scanGitConfigEnvironment, scanGitRepositories } from '../scanners/git.j
 import { scanShellEnvironment } from '../scanners/shell.js';
 import { scanSSHEnvironment } from '../scanners/ssh.js';
 import { scanTerminalEnvironment } from '../scanners/terminal.js';
+
+// --- NEW DIRECTORY PATH HELPERS (3-Tier Layout) ---
+const getPersonalDir = (email, device, payloadType) => 
+    path.join(process.cwd(), 'client', 'snapshots', 'personal', email, device, payloadType);
+
+const getSharableDir = (payloadType) => 
+    path.join(process.cwd(), 'client', 'snapshots', 'sharable', payloadType);
+
+const getReceivedDir = (payloadType) => 
+    path.join(process.cwd(), 'client', 'snapshots', 'received', payloadType);
 
 export async function handleVaultAction(action) {
     const activeAccountEmail = getActiveAccount();
@@ -164,6 +181,11 @@ export async function handleVaultAction(action) {
         }
 
         case 'vault_pull': {
+            if (!activeAccountEmail) {
+                console.log(chalk.red('\n❌ You must be logged in to pull snapshots from your personal vault.\n'));
+                break;
+            }
+
             const type = await input({ message: 'Payload type (declarative_state, dotfiles, workspace_session):', default: 'declarative_state' });
             const workspace = await input({ message: 'Workspace name:', default: 'default' });
             
@@ -227,7 +249,7 @@ export async function handleVaultAction(action) {
                 if (type === 'dotfiles') subFolder = 'dotfiles';
                 if (type === 'workspace_session') subFolder = 'workspace_session';
 
-                const snapshotsDir = path.join(process.cwd(), 'client', 'snapshots', activeAccountEmail, selectedDevice, subFolder);
+                const snapshotsDir = getPersonalDir(activeAccountEmail, selectedDevice, subFolder);
                 await fs.mkdir(snapshotsDir, { recursive: true });
                 
                 const timeSlug = dayjs().format('YYYY-MM-DD-HHmmss');
@@ -236,7 +258,7 @@ export async function handleVaultAction(action) {
                 
                 await fs.writeFile(exportPath, JSON.stringify(responseData, null, 2), 'utf8');
 
-                console.log(chalk.green(`\n✅ Encrypted ciphertext successfully stored locally at: client/snapshots/${activeAccountEmail}/${selectedDevice}/${subFolder}/${exportFilename}\n`));
+                console.log(chalk.green(`\n✅ Stored under personal vault: ${exportPath}\n`));
             } catch (err) {
                 console.log(chalk.red(`\n❌ Failed to save pulled snapshot: ${err.message}\n`));
             }
@@ -244,12 +266,17 @@ export async function handleVaultAction(action) {
         }
 
         case 'vault_view': {
-            const userSnapshotsDir = path.join(process.cwd(), 'client', 'snapshots', activeAccountEmail);
+            if (!activeAccountEmail) {
+                console.log(chalk.red('\n❌ You must be logged in to use vault_view.\n'));
+                break;
+            }
+
+            const userSnapshotsDir = path.join(process.cwd(), 'client', 'snapshots', 'personal', activeAccountEmail);
             
             try {
                 await fs.access(userSnapshotsDir);
             } catch {
-                console.log(chalk.yellow(`\n⚠️ No local snapshots directory found for account [${activeAccountEmail}]. Pull some ciphertext first!\n`));
+                console.log(chalk.yellow(`\n⚠️ No personal snapshots directory found for account [${activeAccountEmail}]. Pull some ciphertext first!\n`));
                 break;
             }
 
@@ -257,7 +284,7 @@ export async function handleVaultAction(action) {
             const deviceDirs = entries.filter(dirent => dirent.isDirectory()).map(dirent => dirent.name);
 
             if (deviceDirs.length === 0) {
-                console.log(chalk.yellow(`\n⚠️ No device snapshot folders found under client/snapshots/${activeAccountEmail}/\n`));
+                console.log(chalk.yellow(`\n⚠️ No device snapshot folders found under client/snapshots/personal/${activeAccountEmail}/\n`));
                 break;
             }
 
@@ -302,7 +329,7 @@ export async function handleVaultAction(action) {
             const jsonFiles = files.filter(file => file.endsWith('.json'));
 
             if (jsonFiles.length === 0) {
-                console.log(chalk.yellow(`\n⚠️ No encrypted snapshot files found in client/snapshots/${activeAccountEmail}/${selectedDevice}/${category}/\n`));
+                console.log(chalk.yellow(`\n⚠️ No encrypted snapshot files found in personal folder.\n`));
                 break;
             }
 
@@ -355,136 +382,193 @@ export async function handleVaultAction(action) {
             break;
         }
 
-        case 'vault_view_offline': {
-            const snapshotsBaseDir = path.join(process.cwd(), 'client', 'snapshots');
-            
+        case 'vault_export': {
+            if (!activeAccountEmail) {
+                console.log(chalk.red('\n❌ You must be logged in to export personal snapshots.\n'));
+                break;
+            }
+
+            const userSnapshotsDir = path.join(process.cwd(), 'client', 'snapshots', 'personal', activeAccountEmail);
             try {
-                await fs.access(snapshotsBaseDir);
+                await fs.access(userSnapshotsDir);
             } catch {
-                console.log(chalk.yellow(`\n⚠️ No local snapshots root directory found at client/snapshots/. Pull some ciphertext first!\n`));
+                console.log(chalk.yellow(`\n⚠️ No personal snapshots found under client/snapshots/personal/${activeAccountEmail}/\n`));
                 break;
             }
 
-            const entries = await fs.readdir(snapshotsBaseDir, { withFileTypes: true });
-            const accountDirs = entries.filter(dirent => dirent.isDirectory()).map(dirent => dirent.name);
-
-            if (accountDirs.length === 0) {
-                console.log(chalk.yellow(`\n⚠️ No account snapshot folders found under client/snapshots/\n`));
-                break;
-            }
-
-            const accountChoices = accountDirs.map(email => ({
-                name: `📧 ${email}`,
-                value: email,
-            }));
-            accountChoices.push({ name: '❌ Cancel', value: 'cancel' });
-
-            const selectedEmail = await select({
-                message: 'Select account email folder to inspect:',
-                choices: accountChoices,
-            });
-
-            if (selectedEmail === 'cancel') break;
-
-            const userSnapshotsDir = path.join(snapshotsBaseDir, selectedEmail);
-            const deviceEntries = await fs.readdir(userSnapshotsDir, { withFileTypes: true });
-            const deviceDirs = deviceEntries.filter(dirent => dirent.isDirectory()).map(dirent => dirent.name);
+            const deviceDirs = (await fs.readdir(userSnapshotsDir, { withFileTypes: true }))
+                .filter(d => d.isDirectory())
+                .map(d => d.name);
 
             if (deviceDirs.length === 0) {
-                console.log(chalk.yellow(`\n⚠️ No device snapshot folders found under client/snapshots/${selectedEmail}/\n`));
+                console.log(chalk.yellow('\n⚠️ No device directories found.\n'));
                 break;
             }
 
-            const shortId = machineIdPkg.machineIdSync().slice(0, 6);
-            const currentDeviceIdentifier = `${os.hostname()}-${shortId}`;
-
-            const deviceChoices = deviceDirs.map(deviceId => ({
-                name: deviceId === currentDeviceIdentifier ? `💻 ${deviceId} (This Device)` : `💻 ${deviceId}`,
-                value: deviceId,
-            }));
-            deviceChoices.push({ name: '❌ Cancel', value: 'cancel' });
-
             const selectedDevice = await select({
-                message: 'Select device to inspect snapshots for:',
-                choices: deviceChoices,
+                message: 'Select device source for export:',
+                choices: [...deviceDirs.map(d => ({ name: d, value: d })), { name: '❌ Cancel', value: 'cancel' }]
             });
-
             if (selectedDevice === 'cancel') break;
 
-            const category = await select({
-                message: 'Select snapshot category to inspect:',
+            const payloadType = await select({
+                message: 'Select payload category:',
                 choices: [
-                    { name: '📂 Declarative State', value: 'declarative' },
-                    { name: '📂 Dotfiles', value: 'dotfiles' },
-                    { name: '📂 Workspace Session', value: 'workspace_session' },
-                    { name: '❌ Cancel', value: 'cancel' },
-                ],
+                    { name: 'Declarative State', value: 'declarative' },
+                    { name: 'Dotfiles', value: 'dotfiles' },
+                    { name: 'Workspace Session', value: 'workspace_session' },
+                    { name: '❌ Cancel', value: 'cancel' }
+                ]
             });
+            if (payloadType === 'cancel') break;
 
-            if (category === 'cancel') break;
-
-            const categoryDir = path.join(userSnapshotsDir, selectedDevice, category);
-            
+            const categoryDir = path.join(userSnapshotsDir, selectedDevice, payloadType);
             try {
                 await fs.access(categoryDir);
             } catch {
-                console.log(chalk.yellow(`\n⚠️ No local snapshots directory found for category [${category}] on device [${selectedDevice}].\n`));
+                console.log(chalk.yellow(`\n⚠️ No snapshot category found at: ${categoryDir}\n`));
                 break;
             }
 
-            const files = await fs.readdir(categoryDir);
-            const jsonFiles = files.filter(file => file.endsWith('.json'));
-
-            if (jsonFiles.length === 0) {
-                console.log(chalk.yellow(`\n⚠️ No encrypted snapshot files found in client/snapshots/${selectedEmail}/${selectedDevice}/${category}/\n`));
+            const files = (await fs.readdir(categoryDir)).filter(f => f.endsWith('.json'));
+            if (files.length === 0) {
+                console.log(chalk.yellow('\n⚠️ No snapshot files available to export.\n'));
                 break;
             }
-
-            const fileChoices = jsonFiles.map(file => ({
-                name: `📄 ${file.replace('stash-encrypted-', '').replace('.json', '')}`,
-                value: file,
-            }));
-            fileChoices.push({ name: '❌ Cancel', value: 'cancel' });
 
             const selectedFile = await select({
-                message: 'Select an encrypted snapshot file to view:',
-                choices: fileChoices,
+                message: 'Select snapshot file to export:',
+                choices: [...files.map(f => ({ name: f, value: f })), { name: '❌ Cancel', value: 'cancel' }]
             });
-
             if (selectedFile === 'cancel') break;
-
-            const filePath = path.join(categoryDir, selectedFile);
-            const fileContent = await fs.readFile(filePath, 'utf8');
-            const encryptedPayloadWrapper = JSON.parse(fileContent);
-            const payloadToDecrypt = encryptedPayloadWrapper?.payload || encryptedPayloadWrapper;
 
             let masterSecret;
             while (true) {
-                masterSecret = await password({ 
-                    message: 'Enter master key password to decrypt offline in-memory:', 
-                    mask: '*'
-                });
-
+                masterSecret = await password({ message: 'Enter your personal master password to decrypt source file:', mask: '*' });
                 const validation = validateMasterPassword(masterSecret);
-                if (validation.isValid) {
-                    break;
-                }
+                if (validation.isValid) break;
                 console.log(chalk.red(`\n❌ ${validation.message}\n`));
             }
 
+            const sharedPassword = await password({ message: 'Enter a shared export password for your recipient:', mask: '*' });
+            const confirmShared = await password({ message: 'Confirm shared export password:', mask: '*' });
+
+            if (sharedPassword !== confirmShared) {
+                console.log(chalk.red('\n❌ Shared passwords do not match. Aborting export.\n'));
+                break;
+            }
+
             try {
-                const decryptedObj = decryptPayload(payloadToDecrypt, masterSecret, selectedEmail);
+                const filePath = path.join(categoryDir, selectedFile);
+                const fileContent = await fs.readFile(filePath, 'utf8');
+                const wrapper = JSON.parse(fileContent);
+                const payloadToDecrypt = wrapper?.payload || wrapper;
+
+                const plaintextData = decryptPayload(payloadToDecrypt, masterSecret, activeAccountEmail);
+
+                const privateKeyPem = process.env.STASH_PRIVATE_KEY;
+                if (!privateKeyPem) {
+                    console.log(chalk.red('\n❌ STASH_PRIVATE_KEY is missing from your .env.developmentlocal file.\n'));
+                    break;
+                }
+
+                const { signature, publicKey } = signData(plaintextData, privateKeyPem);
+
+                const envelope = {
+                    data: plaintextData,
+                    signer: {
+                        publicKey,
+                        signature
+                    }
+                };
+
+                const encryptedEnvelope = encryptSharablePayload(envelope, sharedPassword);
+
+                const sharableDir = getSharableDir(payloadType);
+                await fs.mkdir(sharableDir, { recursive: true });
+
+                const outFilename = `stash-shared-${selectedDevice}-${dayjs().format('YYYY-MM-DD-HHmmss')}.json`;
+                const outPath = path.join(sharableDir, outFilename);
+
+                await fs.writeFile(outPath, JSON.stringify(encryptedEnvelope, null, 2), 'utf8');
+                console.log(chalk.green(`\n✅ Successfully exported sharable package to: ${outPath}\n`));
+            } catch (err) {
+                console.log(chalk.red(`\n❌ Export failed: ${err.message}\n`));
+            }
+            break;
+        }
+
+        case 'vault_view_shared': {
+            const targetFolderChoice = await select({
+                message: 'Select folder to inspect:',
+                choices: [
+                    { name: '📂 Sharable Exports (Outbound files under sharable/)', value: 'sharable' },
+                    { name: '📂 Received Sharables (Inbound files under received/)', value: 'received' },
+                    { name: '❌ Cancel', value: 'cancel' }
+                ]
+            });
+            if (targetFolderChoice === 'cancel') break;
+
+            const payloadType = await select({
+                message: 'Select payload category:',
+                choices: [
+                    { name: 'Declarative State', value: 'declarative' },
+                    { name: 'Dotfiles', value: 'dotfiles' },
+                    { name: 'Workspace Session', value: 'workspace_session' },
+                    { name: '❌ Cancel', value: 'cancel' }
+                ]
+            });
+            if (payloadType === 'cancel') break;
+
+            const targetDir = targetFolderChoice === 'sharable' ? getSharableDir(payloadType) : getReceivedDir(payloadType);
+
+            try {
+                await fs.access(targetDir);
+            } catch {
+                console.log(chalk.yellow(`\n⚠️ Directory not found: ${targetDir}\n`));
+                break;
+            }
+
+            const files = (await fs.readdir(targetDir)).filter(f => f.endsWith('.json'));
+            if (files.length === 0) {
+                console.log(chalk.yellow(`\n⚠️ No files found under [${targetFolderChoice}/${payloadType}]\n`));
+                break;
+            }
+
+            const selectedFile = await select({
+                message: 'Select file to view:',
+                choices: [...files.map(f => ({ name: f, value: f })), { name: '❌ Cancel', value: 'cancel' }]
+            });
+            if (selectedFile === 'cancel') break;
+
+            const sharedPass = await password({ message: 'Enter shared export password:', mask: '*' });
+
+            try {
+                const fileContent = await fs.readFile(path.join(targetDir, selectedFile), 'utf8');
+                const encryptedEnvelopeWrapper = JSON.parse(fileContent);
+
+                const decryptedEnvelope = decryptSharablePayload(encryptedEnvelopeWrapper, sharedPass);
+
+                const isValid = verifySignature(
+                    decryptedEnvelope.data,
+                    decryptedEnvelope.signer.signature,
+                    decryptedEnvelope.signer.publicKey
+                );
 
                 console.log(chalk.cyan(`\n==================================================`));
-                console.log(chalk.cyan(`   OFFLINE VIEW: [${selectedEmail}] / [${selectedDevice}]`));
+                console.log(chalk.cyan(`   SHARED VIEW: [${targetFolderChoice}] / [${selectedFile}]`));
                 console.log(chalk.cyan(`==================================================\n`));
-                
-                console.dir(decryptedObj, { depth: null, colors: true });
-                
-                console.log(chalk.cyan(`\n==================================================`));
-                console.log(chalk.green('✅ Offline inspection complete. Plaintext data was held strictly in-memory and discarded.\n'));
+
+                if (isValid) {
+                    console.log(chalk.green('✅ Cryptographic Signature Verified: Authentic payload from sender!\n'));
+                } else {
+                    console.log(chalk.red('⚠️ WARNING: Signature verification failed! Content may be untrusted or tampered with.\n'));
+                }
+
+                console.dir(decryptedEnvelope.data, { depth: null, colors: true });
+                console.log(chalk.cyan(`\n==================================================\n`));
             } catch (err) {
-                console.log(chalk.red('\n❌ Decryption failed! Invalid master key password, incorrect account email, or corrupted ciphertext.\n'));
+                console.log(chalk.red(`\n❌ Failed to decrypt file. Incorrect shared password or corrupted structure.\n`));
             }
             break;
         }

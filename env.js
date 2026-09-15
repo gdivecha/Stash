@@ -28,6 +28,8 @@ export const {
     SESSION_TOKEN,
     UPSTASH_REDIS_REST_URL,
     UPSTASH_REDIS_REST_TOKEN,
+    STASH_PRIVATE_KEY,
+    STASH_PUBLIC_KEY,
 } = process.env;
 
 if (!MONGO_URI) {

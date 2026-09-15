@@ -25,7 +25,7 @@ export async function startInteractiveConsole() {
             choices.push(
                 { name: '🔐 Auth: Sign Up', value: 'auth_signup' },
                 { name: '🔑 Auth: Sign In', value: 'auth_signin' },
-                { name: '📂 Vault: View Local Snapshots (Offline)', value: 'vault_view_offline' }
+                { name: '📤 Vault: View Shared / Received Packages', value: 'vault_view_shared' }
             );
         } else {
             choices.push(
@@ -37,7 +37,8 @@ export async function startInteractiveConsole() {
                 { name: '📦 Vault: Push Encrypted Snapshot', value: 'vault_push' },
                 { name: '📥 Vault: Pull Encrypted Ciphertext', value: 'vault_pull' },
                 { name: '👁️  Vault: View Local Snapshot (In-Memory Decrypt)', value: 'vault_view' },
-                { name: '📂 Vault: View Local Snapshots (Offline)', value: 'vault_view_offline' },
+                { name: '📤 Vault: Export Sharable Package', value: 'vault_export' },
+                { name: '📦 Vault: View Shared / Received Packages', value: 'vault_view_shared' },
                 { name: '📊 Vault: Summary', value: 'vault_summary' },
                 { name: '🗑️  Vault: Delete Snapshot', value: 'vault_delete' }
             );
