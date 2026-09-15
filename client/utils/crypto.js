@@ -139,8 +139,15 @@ export function decryptSharablePayload(payload, sharedPassword) {
 
 export function signData(dataObj, privateKeyPem) {
     const dataString = JSON.stringify(dataObj);
-    const signature = crypto.sign(null, Buffer.from(dataString), crypto.createPrivateKey(privateKeyPem));
-    const publicKey = crypto.createPublicKey(privateKeyPem).export({ type: 'spki', format: 'pem' });
+    
+    // Explicitly parse the private key to support format variations safely under OpenSSL 3.x
+    const privateKey = crypto.createPrivateKey({
+        key: privateKeyPem,
+        format: 'pem',
+    });
+
+    const signature = crypto.sign(null, Buffer.from(dataString), privateKey);
+    const publicKey = crypto.createPublicKey(privateKey).export({ type: 'spki', format: 'pem' });
     
     return {
         signature: signature.toString('hex'),
