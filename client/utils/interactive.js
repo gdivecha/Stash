@@ -79,62 +79,33 @@ export async function startInteractiveConsole() {
         const accountHeader = activeAccountEmail ? chalk.green(`[Active Account: ${activeAccountEmail}]`) : chalk.yellow('[No Active Account]');
         console.log(accountHeader);
 
+        const choices = [];
+
+        if (!activeAccountEmail) {
+            choices.push(
+                { name: '🔐 Auth: Sign Up', value: 'auth_signup' },
+                { name: '🔑 Auth: Sign In', value: 'auth_signin' }
+            );
+        } else {
+            choices.push(
+                { name: '🔄 Auth: Switch / Manage Accounts', value: 'auth_switch' },
+                { name: '🚪 Auth: Sign Out Current Account', value: 'auth_signout' },
+                { name: '👤 User: Get Profile (Me)', value: 'user_me' },
+                { name: '✏️  User: Update Profile', value: 'user_update' },
+                { name: '⚠️  User: Delete Account', value: 'user_delete' },
+                { name: '📦 Vault: Push Encrypted Snapshot', value: 'vault_push' },
+                { name: '📥 Vault: Pull Encrypted Ciphertext', value: 'vault_pull' },
+                { name: '👁️  Vault: View Local Snapshot (In-Memory Decrypt)', value: 'vault_view' },
+                { name: '📊 Vault: Summary', value: 'vault_summary' },
+                { name: '🗑️  Vault: Delete Snapshot', value: 'vault_delete' }
+            );
+        }
+
+        choices.push({ name: '❌ Exit Console', value: 'exit' });
+
         const action = await select({
             message: 'Select an operation family',
-            choices: [
-                { 
-                    name: '🔐 Auth: Sign Up', 
-                    value: 'auth_signup',
-                },
-                { 
-                    name: '🔑 Auth: Sign In', 
-                    value: 'auth_signin',
-                },
-                { 
-                    name: '🔄 Auth: Switch Active Account', 
-                    value: 'auth_switch',
-                },
-                { 
-                    name: '🚪 Auth: Sign Out Current Account', 
-                    value: 'auth_signout',
-                },
-                { 
-                    name: '👤 User: Get Profile (Me)',
-                    value: 'user_me',
-                },
-                { 
-                    name: '✏️  User: Update Profile',
-                    value: 'user_update',
-                },
-                { 
-                    name: '⚠️  User: Delete Account', 
-                    value: 'user_delete',
-                },
-                { 
-                    name: '📦 Vault: Push Encrypted Snapshot', 
-                    value: 'vault_push',
-                },
-                { 
-                    name: '📥 Vault: Pull Encrypted Ciphertext', 
-                    value: 'vault_pull',
-                },
-                { 
-                    name: '👁️  Vault: View Local Snapshot (In-Memory Decrypt)', 
-                    value: 'vault_view',
-                },
-                { 
-                    name: '📊 Vault: Summary',
-                    value: 'vault_summary',
-                },
-                { 
-                    name: '🗑️  Vault: Delete Snapshot', 
-                    value: 'vault_delete',
-                },
-                { 
-                    name: '❌ Exit Console', 
-                    value: 'exit',
-                },
-            ],
+            choices,
         });
 
         if (action === 'exit') {
@@ -162,11 +133,6 @@ export async function handleAction(action) {
 
     switch (action) {
         case 'auth_signup': {
-            if (activeAccountEmail) {
-                console.log(chalk.yellow(`\n⚠️ You are currently signed in as [${activeAccountEmail}]. Please sign out first before signing up a new account.\n`));
-                break;
-            }
-
             const name = await input({ message: 'Enter full name:' });
             const email = await input({ message: 'Enter email:' });
             const pass = await password({ message: 'Enter password:', mask: '*' });
@@ -211,32 +177,105 @@ export async function handleAction(action) {
 
         case 'auth_switch': {
             const accounts = Array.from(activeSessions.keys());
-            if (accounts.length === 0) {
-                console.log(chalk.yellow('\n⚠️ No active accounts in memory. Sign in or sign up first.\n'));
+            
+            const subActionChoices = [
+                { name: '➕ Sign in to a different account', value: 'signin_another' },
+                { name: '🔐 Sign up for a new account', value: 'signup_another' },
+                { name: '❌ Cancel', value: 'cancel' }
+            ];
+
+            if (accounts.length > 0) {
+                const accountChoices = accounts.map(email => ({
+                    name: email === activeAccountEmail ? `👤 ${email} (current)` : `👤 ${email}`,
+                    value: `switch_${email}`,
+                }));
+                subActionChoices.unshift(...accountChoices);
+            }
+
+            const selection = await select({
+                message: 'Account Management:',
+                choices: subActionChoices,
+            });
+
+            if (selection === 'cancel') {
                 break;
             }
 
-            const selectedEmail = await select({
-                message: 'Select active account context:',
-                choices: accounts.map(email => ({
-                    name: email === activeAccountEmail ? `👤 ${email} (current)` : `👤 ${email}`,
-                    value: email,
-                })),
-            });
+            if (selection === 'signin_another') {
+                const email = await input({ message: 'Enter email to sign in:' });
+                const pass = await password({ message: 'Enter password:', mask: '*' });
 
-            activeAccountEmail = selectedEmail;
-            console.log(chalk.green(`\n✅ Active session switched to: ${activeAccountEmail}\n`));
+                const res = await api.post('/auth/sign-in', { email, password: pass });
+                const token = extractCookieToken(res);
+                if (token) {
+                    activeSessions.set(email, token);
+                    activeAccountEmail = email;
+                }
+                console.log(chalk.green(`\n✅ Signed in successfully! Active session switched to [${email}].\n`));
+                break;
+            }
+
+            if (selection === 'signup_another') {
+                const name = await input({ message: 'Enter full name:' });
+                const email = await input({ message: 'Enter email:' });
+                const pass = await password({ message: 'Enter password:', mask: '*' });
+
+                const res = await api.post('/auth/sign-up', { name, email, password: pass });
+                const token = extractCookieToken(res);
+                if (token) {
+                    activeSessions.set(email, token);
+                    activeAccountEmail = email;
+                }
+                console.log(chalk.green(`\n✅ Account created successfully and active session set to [${email}]!\n`));
+                break;
+            }
+
+            if (selection.startsWith('switch_')) {
+                const targetEmail = selection.replace('switch_', '');
+                if (targetEmail === activeAccountEmail) {
+                    console.log(chalk.yellow(`\n⚠️ You are already logged into that account and are active on it right now.\n`));
+                    break;
+                }
+                activeAccountEmail = targetEmail;
+                console.log(chalk.green(`\n✅ Active session switched to: ${activeAccountEmail}\n`));
+                break;
+            }
             break;
         }
 
         case 'auth_signout': {
-            if (activeAccountEmail) {
-                await api.post('/auth/sign-out').catch(() => {});
-                activeSessions.delete(activeAccountEmail);
-                activeAccountEmail = activeSessions.keys().next().value || null;
-                console.log(chalk.yellow('\n✅ Current account signed out and removed from memory.\n'));
-            } else {
+            if (!activeAccountEmail) {
                 console.log(chalk.yellow('\n⚠️ No active account to sign out from.\n'));
+                break;
+            }
+
+            const currentEmail = activeAccountEmail;
+            
+            // Call server sign out
+            await api.post('/auth/sign-out').catch(() => {});
+            
+            // Remove from local memory registry
+            activeSessions.delete(currentEmail);
+            console.log(chalk.yellow(`\n✅ Account [${currentEmail}] signed out and removed from memory.`));
+
+            const remainingAccounts = Array.from(activeSessions.keys());
+
+            if (remainingAccounts.length === 0) {
+                activeAccountEmail = null;
+                console.log(chalk.yellow('No other active accounts remaining. You are now logged out.\n'));
+            } else if (remainingAccounts.length === 1) {
+                activeAccountEmail = remainingAccounts[0];
+                console.log(chalk.green(`Automatically switched to remaining account: [${activeAccountEmail}]\n`));
+            } else {
+                const fallbackChoice = await select({
+                    message: 'Select an account to fall back to:',
+                    choices: remainingAccounts.map(email => ({
+                        name: `👤 ${email}`,
+                        value: email,
+                    })),
+                });
+                activeAccountEmail = fallbackChoice;
+                console.log(chalk.green(`\n✅ Active session successfully switched to: [${activeAccountEmail}]\n`));
             }
             break;
         }
@@ -409,7 +448,6 @@ export async function handleAction(action) {
                 mask: '*' 
             });
 
-            // Bound cryptographically to the active user account email
             const encrypted = encryptPayload(snapshotData, masterSecret, activeAccountEmail);
 
             const payloadBody = {
@@ -459,7 +497,6 @@ export async function handleAction(action) {
                     subFolder = 'workspace_session';
                 }
 
-                // Namespaced locally by active account email
                 const snapshotsDir = path.join(process.cwd(), 'client', 'snapshots', activeAccountEmail, subFolder);
                 await fs.mkdir(snapshotsDir, { recursive: true });
                 
@@ -489,7 +526,6 @@ export async function handleAction(action) {
 
             if (category === 'cancel') break;
 
-            // Restrict view directory scope strictly to the active user's local folder
             const categoryDir = path.join(process.cwd(), 'client', 'snapshots', activeAccountEmail, category);
             
             try {
@@ -536,7 +572,6 @@ export async function handleAction(action) {
             });
 
             try {
-                // Pass activeAccountEmail to enforce cryptographic user-binding verification
                 const decryptedObj = decryptPayload(payloadToDecrypt, masterSecret, activeAccountEmail);
 
                 console.log(chalk.cyan(`\n==================================================`));
