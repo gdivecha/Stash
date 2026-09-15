@@ -140,10 +140,14 @@ export function decryptSharablePayload(payload, sharedPassword) {
 export function signData(dataObj, privateKeyPem) {
     const dataString = JSON.stringify(dataObj);
     
-    // Explicitly parse the private key to support format variations safely under OpenSSL 3.x
+    // Clean up potential literal escape sequences if loaded from a single-line .env string
+    const formattedKey = privateKeyPem.includes('\\n') 
+        ? privateKeyPem.replace(/\\n/g, '\n') 
+        : privateKeyPem;
+
     const privateKey = crypto.createPrivateKey({
-        key: privateKeyPem,
-        format: 'pem',
+        key: formattedKey,
+        format: 'pem'
     });
 
     const signature = crypto.sign(null, Buffer.from(dataString), privateKey);
