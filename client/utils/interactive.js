@@ -48,7 +48,9 @@ import {
     BACKEND_API_VERSION,
 } from '../../env.js';
 
-let sessionCookie = '';
+// In-memory multi-account session registry (Zero persistent caching on disk)
+const activeSessions = new Map(); // Map<email, token>
+let activeAccountEmail = null;
 
 export const api = axios.create({
     baseURL: `${BACKEND_SERVER_URL}/${BACKEND_API_VERSION}`,
@@ -56,14 +58,15 @@ export const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-    if (sessionCookie) {
-        config.headers.Cookie = `token=${sessionCookie}`;
+    if (activeAccountEmail && activeSessions.has(activeAccountEmail)) {
+        config.headers.Cookie = `token=${activeSessions.get(activeAccountEmail)}`;
     }
     return config;
 });
 
-export function setSessionToken(token) {
-    sessionCookie = token;
+export function setSessionToken(token, email = 'default') {
+    activeSessions.set(email, token);
+    activeAccountEmail = email;
 }
 
 export async function startInteractiveConsole() {
@@ -73,6 +76,9 @@ export async function startInteractiveConsole() {
     console.log(chalk.bold.cyan('========================================\n'));
 
     while (true) {
+        const accountHeader = activeAccountEmail ? chalk.green(`[Active Account: ${activeAccountEmail}]`) : chalk.yellow('[No Active Account]');
+        console.log(accountHeader);
+
         const action = await select({
             message: 'Select an operation family',
             choices: [
@@ -85,7 +91,11 @@ export async function startInteractiveConsole() {
                     value: 'auth_signin',
                 },
                 { 
-                    name: '🚪 Auth: Sign Out', 
+                    name: '🔄 Auth: Switch Active Account', 
+                    value: 'auth_switch',
+                },
+                { 
+                    name: '🚪 Auth: Sign Out Current Account', 
                     value: 'auth_signout',
                 },
                 { 
@@ -144,8 +154,19 @@ export async function startInteractiveConsole() {
 }
 
 export async function handleAction(action) {
+    const publicActions = ['auth_signup', 'auth_signin'];
+    if (!activeAccountEmail && !publicActions.includes(action)) {
+        console.log(chalk.yellow('\n⚠️ You must sign in or sign up first to perform this action.\n'));
+        return;
+    }
+
     switch (action) {
         case 'auth_signup': {
+            if (activeAccountEmail) {
+                console.log(chalk.yellow(`\n⚠️ You are currently signed in as [${activeAccountEmail}]. Please sign out first before signing up a new account.\n`));
+                break;
+            }
+
             const name = await input({ message: 'Enter full name:' });
             const email = await input({ message: 'Enter email:' });
             const pass = await password({ message: 'Enter password:', mask: '*' });
@@ -158,8 +179,12 @@ export async function handleAction(action) {
                     password: pass 
                 });
 
-            captureCookie(res);
-            console.log(chalk.green('\n✅ Account created successfully! Session initialized.\n'));
+            const token = extractCookieToken(res);
+            if (token) {
+                activeSessions.set(email, token);
+                activeAccountEmail = email;
+            }
+            console.log(chalk.green(`\n✅ Account created successfully and active session set for [${email}]!\n`));
             break;        
         }
 
@@ -175,15 +200,44 @@ export async function handleAction(action) {
                 }
             );
 
-            captureCookie(res);
-            console.log(chalk.green('\n✅ Signed in successfully! Session updated.\n'));
+            const token = extractCookieToken(res);
+            if (token) {
+                activeSessions.set(email, token);
+                activeAccountEmail = email;
+            }
+            console.log(chalk.green(`\n✅ Signed in successfully! Active session switched to [${email}].\n`));
+            break;
+        }
+
+        case 'auth_switch': {
+            const accounts = Array.from(activeSessions.keys());
+            if (accounts.length === 0) {
+                console.log(chalk.yellow('\n⚠️ No active accounts in memory. Sign in or sign up first.\n'));
+                break;
+            }
+
+            const selectedEmail = await select({
+                message: 'Select active account context:',
+                choices: accounts.map(email => ({
+                    name: email === activeAccountEmail ? `👤 ${email} (current)` : `👤 ${email}`,
+                    value: email,
+                })),
+            });
+
+            activeAccountEmail = selectedEmail;
+            console.log(chalk.green(`\n✅ Active session switched to: ${activeAccountEmail}\n`));
             break;
         }
 
         case 'auth_signout': {
-            await api.post('/auth/sign-out');
-            sessionCookie = '';
-            console.log(chalk.yellow('\n✅ Signed out successfully. Session cleared.\n'));
+            if (activeAccountEmail) {
+                await api.post('/auth/sign-out').catch(() => {});
+                activeSessions.delete(activeAccountEmail);
+                activeAccountEmail = activeSessions.keys().next().value || null;
+                console.log(chalk.yellow('\n✅ Current account signed out and removed from memory.\n'));
+            } else {
+                console.log(chalk.yellow('\n⚠️ No active account to sign out from.\n'));
+            }
             break;
         }
 
@@ -251,8 +305,11 @@ export async function handleAction(action) {
             const confirm = await input({ message: 'Type "DELETE" to permanently remove your account:' });
             if (confirm === 'DELETE') {
                 await api.delete('/users/me');
-                sessionCookie = '';
-                console.log(chalk.red('\n✅ Account permanently deleted. Session destroyed.\n'));
+                if (activeAccountEmail) {
+                    activeSessions.delete(activeAccountEmail);
+                    activeAccountEmail = activeSessions.keys().next().value || null;
+                }
+                console.log(chalk.red('\n✅ Account permanently deleted. Session destroyed from memory.\n'));
             } else {
                 console.log(chalk.yellow('\nCancellation acknowledged. Account intact.\n'));
             }
@@ -512,12 +569,13 @@ export async function handleAction(action) {
     }
 }
 
-function captureCookie(res) {
+function extractCookieToken(res) {
     const setCookie = res.headers['set-cookie'];
     if (setCookie && setCookie.length > 0) {
         const tokenMatch = setCookie[0].match(/token=([^;]+)/);
         if (tokenMatch && tokenMatch[1]) {
-            sessionCookie = tokenMatch[1];
+            return tokenMatch[1];
         }
     }
+    return null;
 }
