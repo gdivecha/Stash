@@ -64,6 +64,11 @@ program
     .action(() => handleVaultAction('vault_view'));
 
 program
+    .command('view-local')
+    .description('Inspect and decrypt local snapshots offline without logging in')
+    .action(() => handleVaultAction('vault_view_offline'));
+
+program
     .command('summary')
     .description('Display vault summary')
     .action(() => handleVaultAction('vault_summary'));

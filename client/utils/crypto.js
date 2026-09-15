@@ -6,18 +6,22 @@ const IV_LENGTH = 12;               // 96 bits recommended for GCM
 
 /**
  * Derives a deterministic 32-byte binary key bound to both the master secret, 
- * the per-payload random salt, and the specific user's email.
+ * the per-payload random salt, and the specific user's email using 
+ * scrypt parameters optimized for memory-constrained environments.
  */
 function deriveKey(secret, salt, userEmail) {
-    // Cryptographically bind the user's email into the salt buffer so the key 
-    // cannot be derived under any other user account, even with the correct password.
     const emailBuffer = Buffer.from(userEmail, 'utf8');
     const combinedSalt = Buffer.concat([emailBuffer, salt]);
 
     return crypto.scryptSync(
         secret,
         combinedSalt,
-        KEY_LENGTH
+        KEY_LENGTH,
+        {
+            N: 16384, // Optimized memory/CPU cost factor for constrained VMs (2^14)
+            r: 8,     // Block size
+            p: 1      // Parallelization factor
+        }
     );
 }
 

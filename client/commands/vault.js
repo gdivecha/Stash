@@ -11,6 +11,7 @@ import machineIdPkg from 'node-machine-id';
 
 import { api, getActiveAccount } from '../utils/context.js';
 import { encryptPayload, decryptPayload } from '../utils/crypto.js';
+import { validateMasterPassword } from '../utils/validator.js';
 
 // Import your environment scanners
 import { scanVSCodeEnvironment } from '../scanners/vscode.js';
@@ -115,10 +116,19 @@ export async function handleVaultAction(action) {
                 itemCount += snapshotData.terminal.breakdown.tmuxLinesCount + (snapshotData.terminal.breakdown.weztermActive ? 1 : 0);
             }
 
-            const masterSecret = await password({ 
-                message: 'Enter master key password to encrypt:', 
-                mask: '*' 
-            });
+            let masterSecret;
+            while (true) {
+                masterSecret = await password({ 
+                    message: 'Enter master key password to encrypt:', 
+                    mask: '*' 
+                });
+
+                const validation = validateMasterPassword(masterSecret);
+                if (validation.isValid) {
+                    break;
+                }
+                console.log(chalk.red(`\n❌ ${validation.message}\n`));
+            }
 
             const encrypted = encryptPayload(snapshotData, masterSecret, activeAccountEmail);
 
@@ -314,10 +324,19 @@ export async function handleVaultAction(action) {
             const encryptedPayloadWrapper = JSON.parse(fileContent);
             const payloadToDecrypt = encryptedPayloadWrapper?.payload || encryptedPayloadWrapper;
 
-            const masterSecret = await password({ 
-                message: 'Enter master key password to decrypt in-memory:', 
-                mask: '*'
-            });
+            let masterSecret;
+            while (true) {
+                masterSecret = await password({ 
+                    message: 'Enter master key password to decrypt in-memory:', 
+                    mask: '*'
+                });
+
+                const validation = validateMasterPassword(masterSecret);
+                if (validation.isValid) {
+                    break;
+                }
+                console.log(chalk.red(`\n❌ ${validation.message}\n`));
+            }
 
             try {
                 const decryptedObj = decryptPayload(payloadToDecrypt, masterSecret, activeAccountEmail);
@@ -332,6 +351,140 @@ export async function handleVaultAction(action) {
                 console.log(chalk.green('✅ Session inspection complete. Plaintext data was held strictly in-memory and discarded.\n'));
             } catch (err) {
                 console.log(chalk.red('\n❌ Decryption failed! Invalid master key password or corrupted ciphertext.\n'));
+            }
+            break;
+        }
+
+        case 'vault_view_offline': {
+            const snapshotsBaseDir = path.join(process.cwd(), 'client', 'snapshots');
+            
+            try {
+                await fs.access(snapshotsBaseDir);
+            } catch {
+                console.log(chalk.yellow(`\n⚠️ No local snapshots root directory found at client/snapshots/. Pull some ciphertext first!\n`));
+                break;
+            }
+
+            const entries = await fs.readdir(snapshotsBaseDir, { withFileTypes: true });
+            const accountDirs = entries.filter(dirent => dirent.isDirectory()).map(dirent => dirent.name);
+
+            if (accountDirs.length === 0) {
+                console.log(chalk.yellow(`\n⚠️ No account snapshot folders found under client/snapshots/\n`));
+                break;
+            }
+
+            const accountChoices = accountDirs.map(email => ({
+                name: `📧 ${email}`,
+                value: email,
+            }));
+            accountChoices.push({ name: '❌ Cancel', value: 'cancel' });
+
+            const selectedEmail = await select({
+                message: 'Select account email folder to inspect:',
+                choices: accountChoices,
+            });
+
+            if (selectedEmail === 'cancel') break;
+
+            const userSnapshotsDir = path.join(snapshotsBaseDir, selectedEmail);
+            const deviceEntries = await fs.readdir(userSnapshotsDir, { withFileTypes: true });
+            const deviceDirs = deviceEntries.filter(dirent => dirent.isDirectory()).map(dirent => dirent.name);
+
+            if (deviceDirs.length === 0) {
+                console.log(chalk.yellow(`\n⚠️ No device snapshot folders found under client/snapshots/${selectedEmail}/\n`));
+                break;
+            }
+
+            const shortId = machineIdPkg.machineIdSync().slice(0, 6);
+            const currentDeviceIdentifier = `${os.hostname()}-${shortId}`;
+
+            const deviceChoices = deviceDirs.map(deviceId => ({
+                name: deviceId === currentDeviceIdentifier ? `💻 ${deviceId} (This Device)` : `💻 ${deviceId}`,
+                value: deviceId,
+            }));
+            deviceChoices.push({ name: '❌ Cancel', value: 'cancel' });
+
+            const selectedDevice = await select({
+                message: 'Select device to inspect snapshots for:',
+                choices: deviceChoices,
+            });
+
+            if (selectedDevice === 'cancel') break;
+
+            const category = await select({
+                message: 'Select snapshot category to inspect:',
+                choices: [
+                    { name: '📂 Declarative State', value: 'declarative' },
+                    { name: '📂 Dotfiles', value: 'dotfiles' },
+                    { name: '📂 Workspace Session', value: 'workspace_session' },
+                    { name: '❌ Cancel', value: 'cancel' },
+                ],
+            });
+
+            if (category === 'cancel') break;
+
+            const categoryDir = path.join(userSnapshotsDir, selectedDevice, category);
+            
+            try {
+                await fs.access(categoryDir);
+            } catch {
+                console.log(chalk.yellow(`\n⚠️ No local snapshots directory found for category [${category}] on device [${selectedDevice}].\n`));
+                break;
+            }
+
+            const files = await fs.readdir(categoryDir);
+            const jsonFiles = files.filter(file => file.endsWith('.json'));
+
+            if (jsonFiles.length === 0) {
+                console.log(chalk.yellow(`\n⚠️ No encrypted snapshot files found in client/snapshots/${selectedEmail}/${selectedDevice}/${category}/\n`));
+                break;
+            }
+
+            const fileChoices = jsonFiles.map(file => ({
+                name: `📄 ${file.replace('stash-encrypted-', '').replace('.json', '')}`,
+                value: file,
+            }));
+            fileChoices.push({ name: '❌ Cancel', value: 'cancel' });
+
+            const selectedFile = await select({
+                message: 'Select an encrypted snapshot file to view:',
+                choices: fileChoices,
+            });
+
+            if (selectedFile === 'cancel') break;
+
+            const filePath = path.join(categoryDir, selectedFile);
+            const fileContent = await fs.readFile(filePath, 'utf8');
+            const encryptedPayloadWrapper = JSON.parse(fileContent);
+            const payloadToDecrypt = encryptedPayloadWrapper?.payload || encryptedPayloadWrapper;
+
+            let masterSecret;
+            while (true) {
+                masterSecret = await password({ 
+                    message: 'Enter master key password to decrypt offline in-memory:', 
+                    mask: '*'
+                });
+
+                const validation = validateMasterPassword(masterSecret);
+                if (validation.isValid) {
+                    break;
+                }
+                console.log(chalk.red(`\n❌ ${validation.message}\n`));
+            }
+
+            try {
+                const decryptedObj = decryptPayload(payloadToDecrypt, masterSecret, selectedEmail);
+
+                console.log(chalk.cyan(`\n==================================================`));
+                console.log(chalk.cyan(`   OFFLINE VIEW: [${selectedEmail}] / [${selectedDevice}]`));
+                console.log(chalk.cyan(`==================================================\n`));
+                
+                console.dir(decryptedObj, { depth: null, colors: true });
+                
+                console.log(chalk.cyan(`\n==================================================`));
+                console.log(chalk.green('✅ Offline inspection complete. Plaintext data was held strictly in-memory and discarded.\n'));
+            } catch (err) {
+                console.log(chalk.red('\n❌ Decryption failed! Invalid master key password, incorrect account email, or corrupted ciphertext.\n'));
             }
             break;
         }
